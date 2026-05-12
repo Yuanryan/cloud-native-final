@@ -1,0 +1,26 @@
+# 部署 API 前後各執行一次皆可；migrate deploy 可重跑。完成後 Job 會保留，可刪除：kubectl delete job prisma-migrate -n safety-demo
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prisma-migrate
+  namespace: safety-demo
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: prisma-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: local/safety-api:dev
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - cd /app/apps/api && npx prisma migrate deploy
+          envFrom:
+            - secretRef:
+                name: app-env

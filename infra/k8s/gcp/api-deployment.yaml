@@ -1,0 +1,51 @@
+# 將 __IMAGE__ 換成 Artifact Registry 完整路徑後再 apply（見 README 的 sed 範例）。
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: safety-demo
+  labels:
+    app: safety-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: safety-api
+  template:
+    metadata:
+      labels:
+        app: safety-api
+    spec:
+      containers:
+        - name: api
+          image: __IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          envFrom:
+            - secretRef:
+                name: app-env
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi

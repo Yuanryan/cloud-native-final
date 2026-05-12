@@ -1,0 +1,26 @@
+# 將 __IMAGE__ 換成與 api-deployment 相同映像後再 apply。
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prisma-migrate
+  namespace: safety-demo
+spec:
+  ttlSecondsAfterFinished: 600
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: prisma-migrate
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: __IMAGE__
+          imagePullPolicy: Always
+          command:
+            - /bin/sh
+            - -c
+            - cd /app/apps/api && npx prisma migrate deploy
+          envFrom:
+            - secretRef:
+                name: app-env
