@@ -6,3 +6,9 @@ dist
 *.log
 coverage
 .DS_Store
+
+# Personal / AI tooling — not for team repo
+CLAUDE.md
+TODO.md
+test.txt
+project-overview.png
