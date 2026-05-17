@@ -4,12 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  AuditAction,
-  EventStatus,
-  Role,
-  SafetyStatus,
-} from '@prisma/client';
+import { AuditAction, EventStatus, Role, SafetyStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ScopeService } from '../scope/scope.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
@@ -25,7 +20,9 @@ export class SafetyReportsService {
   ) {}
 
   private async getEventOrThrow(eventId: string) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
     if (!event) {
       throw new NotFoundException('Event not found');
     }

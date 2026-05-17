@@ -1,13 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import {
-  EventStatus,
-  NotificationType,
-  Role,
-} from '@prisma/client';
+import { Cron } from '@nestjs/schedule';
+import { EventStatus, NotificationType, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ScopeService } from '../scope/scope.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { RedisService } from '../redis/redis.service';
+
+const SYSTEM_ACTOR: AuthUser = {
+  id: 'system',
+  email: 'system@internal',
+  role: Role.ADMIN,
+  departmentId: '',
+  managerId: null,
+};
 
 @Injectable()
 export class RemindersService {
@@ -17,8 +22,21 @@ export class RemindersService {
     private readonly redis: RedisService,
   ) {}
 
+  @Cron('0 * * * *')
+  async runForAllActiveEvents(): Promise<void> {
+    const events = await this.prisma.event.findMany({
+      where: { status: EventStatus.ACTIVE },
+      select: { id: true },
+    });
+    for (const event of events) {
+      await this.run(event.id, SYSTEM_ACTOR);
+    }
+  }
+
   async run(eventId: string, _actor: AuthUser) {
-    const event = await this.prisma.event.findUnique({ where: { id: eventId } });
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+    });
     if (!event) {
       throw new NotFoundException('Event not found');
     }

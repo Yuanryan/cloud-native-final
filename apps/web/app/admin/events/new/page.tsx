@@ -22,12 +22,23 @@ export default function NewEventPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"DRAFT" | "ACTIVE">("ACTIVE");
+  const [attempted, setAttempted] = useState(false);
 
   useEffect(() => {
     const s = getSession();
     if (!s) router.replace("/login");
     else if (s.user.role !== "ADMIN") router.replace("/dashboard");
   }, [router]);
+
+  const errors = {
+    title:
+      title.trim().length === 0
+        ? "請輸入標題"
+        : title.trim().length < 2
+        ? "標題至少 2 字元"
+        : null,
+  };
+  const isValid = Object.values(errors).every((e) => e === null);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -37,7 +48,7 @@ export default function NewEventPage() {
       }),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["events"] });
-      router.push(`/events/${data.id}`);
+      router.push("/admin/events");
     },
   });
 
@@ -49,26 +60,27 @@ export default function NewEventPage() {
           <CardDescription>由管理員建立緊急事件並設定狀態。</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label htmlFor="title">標題</Label>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              required
-              minLength={2}
-              placeholder="至少 2 個字元"
+              placeholder="至少 2 字元"
             />
+            {attempted && errors.title && (
+              <p className="text-xs text-destructive">{errors.title}</p>
+            )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="desc">說明</Label>
+          <div className="space-y-1">
+            <Label htmlFor="desc">說明（選填）</Label>
             <Input
               id="desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <Label>初始狀態</Label>
             <div className="flex gap-2">
               <Button
@@ -94,12 +106,23 @@ export default function NewEventPage() {
                 : "建立失敗"}
             </p>
           )}
-          <Button
-            disabled={mutation.isPending || title.trim().length < 2}
-            onClick={() => mutation.mutate()}
-          >
-            {mutation.isPending ? "建立中…" : "建立"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              disabled={mutation.isPending}
+              onClick={() => {
+                setAttempted(true);
+                if (isValid) mutation.mutate();
+              }}
+            >
+              {mutation.isPending ? "建立中…" : "建立"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => router.push("/admin/events")}
+            >
+              取消
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </AppShell>

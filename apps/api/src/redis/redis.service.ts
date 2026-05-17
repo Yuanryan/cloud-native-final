@@ -9,7 +9,10 @@ export class RedisService implements OnModuleDestroy {
   constructor(private readonly config: ConfigService) {
     const url = config.get<string>('REDIS_URL');
     if (url) {
-      this.client = new Redis(url, { maxRetriesPerRequest: 2, lazyConnect: true });
+      this.client = new Redis(url, {
+        maxRetriesPerRequest: 2,
+        lazyConnect: true,
+      });
     }
   }
 
@@ -27,7 +30,11 @@ export class RedisService implements OnModuleDestroy {
     return this.client.ping();
   }
 
-  async setNx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+  async setNx(
+    key: string,
+    value: string,
+    ttlSeconds: number,
+  ): Promise<boolean> {
     if (!this.client) {
       return true;
     }
