@@ -22,7 +22,9 @@ function prismaTestDouble() {
     $disconnect: jest.fn().mockResolvedValue(undefined),
     $queryRaw: jest.fn().mockResolvedValue([{ '?column?': 1 }]),
     $transaction: jest.fn((arg: unknown) =>
-      typeof arg === 'function' ? arg({ auditLog: { findMany: jest.fn(), count: jest.fn() } }) : Promise.resolve([]),
+      typeof arg === 'function'
+        ? arg({ auditLog: { findMany: jest.fn(), count: jest.fn() } })
+        : Promise.resolve([]),
     ),
   } as unknown as PrismaService;
 }
