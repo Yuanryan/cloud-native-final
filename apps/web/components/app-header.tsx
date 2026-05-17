@@ -1,16 +1,26 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { clearSession, getSession } from "@/lib/api";
+import type { StoredSession } from "@/lib/api";
 
 export function AppHeader() {
   const router = useRouter();
-  const session = getSession();
+  const qc = useQueryClient();
+  const [session, setSession] = useState<StoredSession | null>(null);
+
+  useEffect(() => {
+    setSession(getSession());
+  }, []);
 
   const logout = () => {
     clearSession();
+    qc.clear();
+    setSession(null);
     router.push("/login");
     router.refresh();
   };
