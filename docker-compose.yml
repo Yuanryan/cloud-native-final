@@ -41,8 +41,8 @@ services:
       - /bin/sh
       - -c
       - |
-        /app/node_modules/.bin/prisma migrate deploy --schema=/app/apps/api/prisma/schema.prisma
-        cd /app/apps/api && exec node dist/main.js
+        /app/apps/api/node_modules/.bin/prisma migrate deploy --schema=/app/apps/api/prisma/schema.prisma
+        cd /app/apps/api && exec node dist/src/main.js
 
   web:
     build:
