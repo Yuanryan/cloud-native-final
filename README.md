@@ -183,6 +183,23 @@ kubectl apply -f infra/k8s/hpa.yaml
 kubectl get hpa -n safety-demo
 ```
 
+**Zero-Downtime Rolling Update**：兩份 Deployment manifest（`infra/k8s/api-deployment.yaml`、`infra/k8s/gcp/api-deployment.yaml`）均已設定明確的滾動更新策略：
+
+```yaml
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0   # 更新過程中不允許任何 Pod 不可用
+    maxSurge: 1         # 先啟動 1 個新 Pod，readinessProbe 通過後才終止舊 Pod
+```
+
+配合 `readinessProbe → GET /health/ready` 與 HPA `minReplicas: 2`，確保任何時刻都有至少 2 個可用 Pod 在服務。觸發更新後可用以下指令觀察：
+
+```bash
+kubectl rollout status deployment/api -n safety-demo
+kubectl get pods -n safety-demo -w
+```
+
 ## 進階與限制（報告可撰寫方向）
 
 - **i18n**：後端錯誤訊息與通知內文可改為 template key；前端可接 `next-intl`。  
