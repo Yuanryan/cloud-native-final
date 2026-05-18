@@ -1,12 +1,11 @@
-// apps/api/src/metrics/metrics.service.ts
 import { Injectable } from '@nestjs/common';
 import * as client from 'prom-client';
 
 @Injectable()
 export class MetricsService {
   private readonly registry: client.Registry;
-  private readonly httpRequestsTotal: client.Counter<string>;
-  private readonly httpRequestDuration: client.Histogram<string>;
+  private readonly httpRequestsTotal: client.Counter<'method' | 'route' | 'status_code'>;
+  private readonly httpRequestDuration: client.Histogram<'method' | 'route' | 'status_code'>;
 
   constructor() {
     this.registry = new client.Registry();
