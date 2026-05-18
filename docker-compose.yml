@@ -71,6 +71,7 @@ services:
     image: prom/prometheus:v2.54.1
     volumes:
       - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/rules:/etc/prometheus/rules:ro
     ports:
       - "9090:9090"
     depends_on:
