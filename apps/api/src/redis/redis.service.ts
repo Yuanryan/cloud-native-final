@@ -54,6 +54,20 @@ export class RedisService implements OnModuleDestroy {
     await this.client.pexpire(key, ttlMs);
   }
 
+  async incrPexpire(key: string, ttlMs: number): Promise<number> {
+    if (!this.client) return 0;
+    if (this.client.status === 'wait') await this.client.connect();
+    // Lua script executed atomically on the Redis server (not JS eval).
+    // Prevents the race where a crash between INCR and PEXPIRE leaves a key without TTL.
+    const luaScript = [
+      'local c=redis.call("INCR",KEYS[1])',
+      'if c==1 then redis.call("PEXPIRE",KEYS[1],ARGV[1]) end',
+      'return c',
+    ].join('\n');
+    const result = await this.client.eval(luaScript, 1, key, String(ttlMs));
+    return Number(result);
+  }
+
   async pttl(key: string): Promise<number> {
     if (!this.client) return 0;
     if (this.client.status === 'wait') await this.client.connect();

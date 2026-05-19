@@ -29,13 +29,17 @@ export class EventsService {
     const cacheKey = `cache:events:list:${actor.role}`;
 
     if (this.redis.isEnabled()) {
-      const cached = await this.redis.get(cacheKey);
-      if (cached) {
-        try {
-          return JSON.parse(cached);
-        } catch {
-          // corrupt cache entry — fall through to DB
+      try {
+        const cached = await this.redis.get(cacheKey);
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch {
+            // corrupt cache entry — fall through to DB
+          }
         }
+      } catch {
+        // Redis unavailable — fall through to DB
       }
     }
 
@@ -55,7 +59,11 @@ export class EventsService {
     }
 
     if (this.redis.isEnabled()) {
-      await this.redis.set(cacheKey, JSON.stringify(events), 30);
+      try {
+        await this.redis.set(cacheKey, JSON.stringify(events), 30);
+      } catch {
+        // Redis write failure — non-fatal, serve result without caching
+      }
     }
     return events;
   }

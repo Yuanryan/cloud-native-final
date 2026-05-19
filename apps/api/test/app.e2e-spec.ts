@@ -36,6 +36,7 @@ function redisTestDouble() {
     setNx: jest.fn().mockResolvedValue(true),
     incr: jest.fn().mockResolvedValue(0),
     pexpire: jest.fn().mockResolvedValue(undefined),
+    incrPexpire: jest.fn().mockResolvedValue(0),
     pttl: jest.fn().mockResolvedValue(0),
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue(undefined),

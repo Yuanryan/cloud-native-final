@@ -4,7 +4,7 @@ import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 
-@SkipThrottle()
+@SkipThrottle({ global: true })
 @Controller('health')
 export class HealthController {
   constructor(

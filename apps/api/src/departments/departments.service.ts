@@ -20,13 +20,17 @@ export class DepartmentsService {
 
   async findAll() {
     if (this.redis.isEnabled()) {
-      const cached = await this.redis.get(DEPT_CACHE_KEY);
-      if (cached) {
-        try {
-          return JSON.parse(cached);
-        } catch {
-          // corrupt cache entry — fall through to DB
+      try {
+        const cached = await this.redis.get(DEPT_CACHE_KEY);
+        if (cached) {
+          try {
+            return JSON.parse(cached);
+          } catch {
+            // corrupt cache entry — fall through to DB
+          }
         }
+      } catch {
+        // Redis unavailable — fall through to DB
       }
     }
 
@@ -35,7 +39,11 @@ export class DepartmentsService {
     });
 
     if (this.redis.isEnabled()) {
-      await this.redis.set(DEPT_CACHE_KEY, JSON.stringify(depts), DEPT_CACHE_TTL);
+      try {
+        await this.redis.set(DEPT_CACHE_KEY, JSON.stringify(depts), DEPT_CACHE_TTL);
+      } catch {
+        // Redis write failure — non-fatal, serve result without caching
+      }
     }
     return depts;
   }

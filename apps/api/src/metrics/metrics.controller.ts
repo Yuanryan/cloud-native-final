@@ -3,7 +3,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import { MetricsService } from './metrics.service';
 
-@SkipThrottle()
+@SkipThrottle({ global: true })
 @Controller('metrics')
 export class MetricsController {
   constructor(private readonly metrics: MetricsService) {}
