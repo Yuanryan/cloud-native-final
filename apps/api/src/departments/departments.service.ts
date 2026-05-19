@@ -21,7 +21,13 @@ export class DepartmentsService {
   async findAll() {
     if (this.redis.isEnabled()) {
       const cached = await this.redis.get(DEPT_CACHE_KEY);
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          // corrupt cache entry — fall through to DB
+        }
+      }
     }
 
     const depts = await this.prisma.department.findMany({

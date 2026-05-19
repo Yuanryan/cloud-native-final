@@ -28,6 +28,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
     ConfigModule.forRoot({ isGlobal: true }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRootAsync({
+      imports: [RedisModule],
       useFactory: (redis: RedisService) => ({
         throttlers: [{ name: 'global', ttl: 60000, limit: 60 }],
         storage: new RedisThrottlerStorage(redis),

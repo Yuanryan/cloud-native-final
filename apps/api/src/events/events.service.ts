@@ -30,7 +30,13 @@ export class EventsService {
 
     if (this.redis.isEnabled()) {
       const cached = await this.redis.get(cacheKey);
-      if (cached) return JSON.parse(cached);
+      if (cached) {
+        try {
+          return JSON.parse(cached);
+        } catch {
+          // corrupt cache entry — fall through to DB
+        }
+      }
     }
 
     let events: Awaited<ReturnType<typeof this.prisma.event.findMany>>;
