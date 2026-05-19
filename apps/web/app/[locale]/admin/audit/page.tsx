@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/app-shell";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { apiFetch, getSession } from "@/lib/api";
 import {
   Table,
@@ -15,7 +16,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 type AuditItem = {
   id: string;
@@ -33,7 +33,10 @@ export default function AdminAuditPage() {
   const t = useTranslations("audit");
   const tc = useTranslations("common");
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     const s = getSession();
     if (!s) router.replace("/login");
     else if (s.user.role !== "ADMIN") router.replace("/dashboard");
@@ -42,11 +45,17 @@ export default function AdminAuditPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: () => apiFetch<AuditResponse>("/audit-logs?limit=50"),
-    enabled: getSession()?.user.role === "ADMIN",
+    enabled: mounted && getSession()?.user.role === "ADMIN",
   });
 
   return (
     <AppShell>
+      <Breadcrumb
+        items={[
+          { label: "管理" },
+          { label: t("title") },
+        ]}
+      />
       <Card>
         <CardHeader>
           <CardTitle>{t("title")}</CardTitle>
@@ -71,15 +80,27 @@ export default function AdminAuditPage() {
                   {data.items.map((row) => (
                     <TableRow key={row.id}>
                       <TableCell className="whitespace-nowrap text-sm">
-                        {new Date(row.createdAt).toLocaleString()}
+                        {new Date(row.createdAt).toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" })}
                       </TableCell>
                       <TableCell>{row.actor?.email ?? "—"}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{row.action}</Badge>
+                        <span
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                          style={
+                            row.action.startsWith("CREATE")
+                              ? { backgroundColor: "var(--info-bg)", color: "var(--info)", border: "1px solid var(--info)" }
+                              : row.action.startsWith("UPDATE")
+                              ? { backgroundColor: "var(--warning-bg)", color: "var(--warning)", border: "1px solid var(--warning)" }
+                              : row.action.startsWith("DELETE")
+                              ? { backgroundColor: "oklch(0.977 0.013 17.38)", color: "var(--destructive)", border: "1px solid var(--destructive)" }
+                              : { backgroundColor: "var(--muted)", color: "var(--muted-foreground)", border: "1px solid var(--border)" }
+                          }
+                        >
+                          {row.action}
+                        </span>
                       </TableCell>
                       <TableCell className="text-sm">
                         {row.resource}
-                        {row.resourceId ? ` / ${row.resourceId}` : ""}
                       </TableCell>
                     </TableRow>
                   ))}

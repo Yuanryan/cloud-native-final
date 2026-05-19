@@ -15,6 +15,7 @@ export function AppHeader() {
   const locale = useLocale() as Locale;
   const qc = useQueryClient();
   const t = useTranslations("nav");
+  const td = useTranslations("dashboard");
   const ta = useTranslations("auth");
   const [session, setSession] = useState<StoredSession | null>(null);
 
@@ -37,36 +38,59 @@ export function AppHeader() {
   return (
     <header className="border-b bg-card">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-        <nav className="flex flex-wrap items-center gap-3 text-sm">
-          <Link href="/dashboard" className="font-semibold">
+        <nav className="flex flex-wrap items-center gap-1 text-sm">
+          <Link href="/dashboard" className="px-2 py-2 font-semibold">
             {t("brand")}
           </Link>
-          <Link href="/events" className="text-muted-foreground hover:text-foreground">
+          <Link
+            href="/events"
+            className={`px-2 py-2 transition-colors ${
+              pathname.startsWith("/events")
+                ? "text-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
             {t("events")}
           </Link>
           <Link
             href="/notifications"
-            className="text-muted-foreground hover:text-foreground"
+            className={`px-2 py-2 transition-colors ${
+              pathname.startsWith("/notifications")
+                ? "text-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
           >
             {t("notifications")}
           </Link>
           {session?.user.role === "ADMIN" && (
             <>
               <Link
-                href="/admin/events/new"
-                className="text-muted-foreground hover:text-foreground"
+                href="/admin/events"
+                className={`px-2 py-2 transition-colors ${
+                  pathname.startsWith("/admin/events")
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
-                {t("createEvent")}
+                {td("eventManagement")}
               </Link>
               <Link
                 href="/admin/users"
-                className="text-muted-foreground hover:text-foreground"
+                className={`px-2 py-2 transition-colors ${
+                  pathname.startsWith("/admin/users")
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
                 {t("users")}
               </Link>
               <Link
                 href="/admin/audit"
-                className="text-muted-foreground hover:text-foreground"
+                className={`px-2 py-2 transition-colors ${
+                  pathname.startsWith("/admin/audit")
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
               >
                 {t("audit")}
               </Link>
@@ -77,7 +101,7 @@ export function AppHeader() {
           <div className="flex items-center rounded border text-xs">
             <button
               onClick={() => switchLocale("zh-TW")}
-              className={`px-2 py-1 transition-colors ${
+              className={`px-3 py-1.5 transition-colors ${
                 locale === "zh-TW"
                   ? "bg-foreground text-background"
                   : "hover:bg-muted"
@@ -87,7 +111,7 @@ export function AppHeader() {
             </button>
             <button
               onClick={() => switchLocale("en")}
-              className={`px-2 py-1 transition-colors ${
+              className={`px-3 py-1.5 transition-colors ${
                 locale === "en"
                   ? "bg-foreground text-background"
                   : "hover:bg-muted"

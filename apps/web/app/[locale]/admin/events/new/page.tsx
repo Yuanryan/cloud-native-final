@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/app-shell";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { apiFetch, getSession } from "@/lib/api";
 import {
   Card,
@@ -22,6 +23,7 @@ export default function NewEventPage() {
   const qc = useQueryClient();
   const t = useTranslations("adminEvents");
   const tc = useTranslations("common");
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"DRAFT" | "ACTIVE">("ACTIVE");
@@ -57,6 +59,13 @@ export default function NewEventPage() {
 
   return (
     <AppShell>
+      <Breadcrumb
+        items={[
+          { label: "管理" },
+          { label: t("title"), href: "/admin/events" },
+          { label: t("createPageTitle") },
+        ]}
+      />
       <Card className="max-w-lg">
         <CardHeader>
           <CardTitle>{t("createPageTitle")}</CardTitle>
@@ -69,7 +78,7 @@ export default function NewEventPage() {
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder={t("errorTitleLength")}
+              placeholder={t("titlePlaceholder")}
             />
             {attempted && errors.title && (
               <p className="text-xs text-destructive">{errors.title}</p>

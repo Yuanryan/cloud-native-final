@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
@@ -29,6 +29,11 @@ type EventRow = {
   id: string;
   title: string;
   status: "DRAFT" | "ACTIVE" | "CLOSED";
+};
+
+type NotificationRow = {
+  id: string;
+  readAt: string | null;
 };
 
 type StatsResult = {
@@ -101,19 +106,33 @@ export default function DashboardPage() {
     if (!getSession()) router.replace("/login");
   }, [router]);
 
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data: me } = useQuery({
     queryKey: ["me"],
     queryFn: () => apiFetch<Me>("/auth/me"),
-    enabled: typeof window !== "undefined" && !!getSession(),
+    enabled: mounted && !!getSession(),
   });
 
-  const { data: events } = useQuery({
+  const { data: allEvents } = useQuery({
     queryKey: ["events"],
     queryFn: () => apiFetch<EventRow[]>("/events"),
-    enabled: !!me && me.role === "MANAGER",
+    enabled: !!me,
   });
 
-  const activeEvents = events?.filter((e) => e.status === "ACTIVE") ?? [];
+  const { data: notifications } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => apiFetch<NotificationRow[]>("/notifications"),
+    enabled: !!me,
+  });
+
+  const activeEvents = allEvents?.filter((e) => e.status === "ACTIVE") ?? [];
+  const activeCount = activeEvents.length;
+  const unreadCount = notifications?.filter((n) => !n.readAt).length ?? 0;
 
   return (
     <AppShell>
@@ -122,6 +141,38 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <p className="text-muted-foreground">{t("subtitle")}</p>
         </div>
+
+        {me && (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Link href="/events">
+              <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+                <CardHeader className="pb-2">
+                  <CardDescription>{t("activeEvents")}</CardDescription>
+                  <CardTitle
+                    className="text-3xl"
+                    style={{ color: activeCount > 0 ? "var(--info)" : undefined }}
+                  >
+                    {activeCount}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </Link>
+            <Link href="/notifications">
+              <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
+                <CardHeader className="pb-2">
+                  <CardDescription>{t("unreadNotifications")}</CardDescription>
+                  <CardTitle
+                    className="text-3xl"
+                    style={{ color: unreadCount > 0 ? "var(--warning)" : undefined }}
+                  >
+                    {unreadCount}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </Link>
+          </div>
+        )}
+
         {me && (
           <Card>
             <CardHeader>

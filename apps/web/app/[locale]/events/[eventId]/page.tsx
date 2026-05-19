@@ -16,7 +16,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
+import { Breadcrumb } from "@/components/breadcrumb";
 import {
   Table,
   TableBody,
@@ -39,7 +40,6 @@ type Stats = {
   safe: number;
   need_help: number;
   no_response: number;
-  scope: string;
 };
 
 type ReportRow = {
@@ -54,18 +54,19 @@ type Me = { role: string };
 function StatCard({
   label,
   value,
-  hint,
+  color,
 }: {
   label: string;
   value: number;
-  hint?: string;
+  color?: string;
 }) {
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-3xl">{value}</CardTitle>
-        {hint && <p className="text-xs text-muted-foreground">scope: {hint}</p>}
+        <CardTitle className="text-3xl" style={color ? { color } : undefined}>
+          {value}
+        </CardTitle>
       </CardHeader>
     </Card>
   );
@@ -78,6 +79,7 @@ export default function EventDetailPage() {
   const t = useTranslations("eventDetail");
   const ts = useTranslations("stats");
   const tc = useTranslations("common");
+  const te = useTranslations("events");
   const session = typeof window !== "undefined" ? getSession() : null;
 
   useEffect(() => {
@@ -139,6 +141,12 @@ export default function EventDetailPage() {
   return (
     <AppShell>
       <div className="space-y-6">
+        <Breadcrumb
+          items={[
+            { label: te("title"), href: "/events" },
+            { label: event?.title ?? tc("event") },
+          ]}
+        />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">{event?.title ?? tc("event")}</h1>
@@ -146,9 +154,9 @@ export default function EventDetailPage() {
               <p className="mt-2 text-muted-foreground">{event.description}</p>
             )}
             {event && (
-              <Badge className="mt-2" variant="outline">
-                {event.status}
-              </Badge>
+              <div className="mt-2">
+                <StatusBadge status={event.status} />
+              </div>
             )}
           </div>
           {(me?.role === "EMPLOYEE" || me?.role === "MANAGER") &&
@@ -163,12 +171,12 @@ export default function EventDetailPage() {
         </div>
 
         {stats && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <StatCard label={ts("total")} value={stats.total} hint={stats.scope} />
-            <StatCard label={ts("responded")} value={stats.responded} />
-            <StatCard label={ts("safe")} value={stats.safe} />
-            <StatCard label={ts("needHelp")} value={stats.need_help} />
-            <StatCard label={ts("noResponse")} value={stats.no_response} />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            <StatCard label={ts("total")} value={stats.total} />
+            <StatCard label={ts("responded")} value={stats.responded} color="var(--info)" />
+            <StatCard label={ts("safe")} value={stats.safe} color="var(--success)" />
+            <StatCard label={ts("needHelp")} value={stats.need_help} color="var(--destructive)" />
+            <StatCard label={ts("noResponse")} value={stats.no_response} color="var(--warning)" />
           </div>
         )}
 
@@ -209,8 +217,8 @@ export default function EventDetailPage() {
             <CardContent>
               {myReport ? (
                 <div className="space-y-1 text-sm">
-                  <p>
-                    {t("statusLabel")}<Badge>{myReport.status}</Badge>
+                  <p className="flex items-center gap-1">
+                    {t("statusLabel")}<StatusBadge status={myReport.status} />
                   </p>
                   {myReport.message && <p>{t("messageLabel")}{myReport.message}</p>}
                 </div>
@@ -244,7 +252,7 @@ export default function EventDetailPage() {
                       <TableCell>{r.user.name}</TableCell>
                       <TableCell>{r.user.department.name}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{r.status}</Badge>
+                        <StatusBadge status={r.status} />
                       </TableCell>
                       <TableCell className="max-w-xs truncate text-muted-foreground">
                         {r.message ?? "—"}
