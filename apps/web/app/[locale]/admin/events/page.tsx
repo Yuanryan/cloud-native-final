@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter, Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/app-shell";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { apiFetch, getSession } from "@/lib/api";
 import {
   Table,
@@ -15,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,14 +32,6 @@ type EventRow = {
 
 const STATUS_OPTIONS = ["DRAFT", "ACTIVE", "CLOSED"] as const;
 
-function statusVariant(
-  status: string
-): "default" | "secondary" | "outline" | "destructive" {
-  if (status === "ACTIVE") return "default";
-  if (status === "DRAFT") return "secondary";
-  return "outline";
-}
-
 export default function AdminEventsPage() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -50,13 +43,16 @@ export default function AdminEventsPage() {
   const [editStatus, setEditStatus] = useState<string>("DRAFT");
   const [editAttempted, setEditAttempted] = useState(false);
 
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     const s = getSession();
     if (!s) router.replace("/login");
     else if (s.user.role !== "ADMIN") router.replace("/dashboard");
   }, [router]);
 
-  const enabled = getSession()?.user.role === "ADMIN";
+  const enabled = mounted && getSession()?.user.role === "ADMIN";
 
   const { data: events, isLoading } = useQuery({
     queryKey: ["events", "admin"],
@@ -112,6 +108,12 @@ export default function AdminEventsPage() {
   return (
     <AppShell>
       <div className="space-y-4">
+        <Breadcrumb
+          items={[
+            { label: "管理" },
+            { label: t("title") },
+          ]}
+        />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
           <Link href="/admin/events/new" className={cn(buttonVariants())}>
@@ -134,7 +136,7 @@ export default function AdminEventsPage() {
                     <TableHead>{tc("title")}</TableHead>
                     <TableHead>{tc("status")}</TableHead>
                     <TableHead>{tc("createdAt")}</TableHead>
-                    <TableHead className="text-right">{tc("description")}</TableHead>
+                    <TableHead className="text-right">{tc("actions")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -143,12 +145,10 @@ export default function AdminEventsPage() {
                       <TableRow key={e.id}>
                         <TableCell className="font-medium">{e.title}</TableCell>
                         <TableCell>
-                          <Badge variant={statusVariant(e.status)}>
-                            {e.status}
-                          </Badge>
+                          <StatusBadge status={e.status} />
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
-                          {new Date(e.createdAt).toLocaleDateString()}
+                          {new Date(e.createdAt).toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" })}
                         </TableCell>
                         <TableCell className="text-right">
                           <span className="flex items-center justify-end gap-2">

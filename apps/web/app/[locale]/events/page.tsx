@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { AppShell } from "@/components/app-shell";
 import { apiFetch, getSession } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import {
   Card,
   CardContent,
@@ -34,15 +34,17 @@ export default function EventsPage() {
   const router = useRouter();
   const t = useTranslations("events");
   const tc = useTranslations("common");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     if (!getSession()) router.replace("/login");
   }, [router]);
 
   const { data: events, isLoading } = useQuery({
     queryKey: ["events"],
     queryFn: () => apiFetch<EventRow[]>("/events"),
-    enabled: typeof window !== "undefined" && !!getSession(),
+    enabled: mounted && !!getSession(),
   });
 
   return (
@@ -58,7 +60,7 @@ export default function EventsPage() {
             <CardDescription>{t("cardDescription")}</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading && <p className="text-sm text-muted-foreground">{tc("loading")}</p>}
+            {isLoading && <div className="text-sm text-muted-foreground">{tc("loading")}</div>}
             {events && (
               <Table>
                 <TableHeader>
@@ -80,10 +82,10 @@ export default function EventsPage() {
                         </Link>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{e.status}</Badge>
+                        <StatusBadge status={e.status} />
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
-                        {new Date(e.createdAt).toLocaleString()}
+                        {new Date(e.createdAt).toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" })}
                       </TableCell>
                     </TableRow>
                   ))}

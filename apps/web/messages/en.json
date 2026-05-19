@@ -19,7 +19,8 @@
     "description": "Description",
     "event": "Event",
     "processing": "Processing…",
-    "operationFailed": "Operation failed, please try again"
+    "operationFailed": "Operation failed, please try again",
+    "actions": "Actions"
   },
   "nav": {
     "brand": "Safety & Response",
@@ -51,7 +52,10 @@
     "myTeamEvents": "My Team Events",
     "teamEventsSubtitle": "Team report status for active events",
     "noActiveEvents": "No active events",
-    "viewTeamReports": "View Team Reports"
+    "viewTeamReports": "View Team Reports",
+    "activeEvents": "Active Events",
+    "unreadNotifications": "Unread Notifications",
+    "unreported": "Unreported"
   },
   "events": {
     "title": "Events",
@@ -95,7 +99,9 @@
   "notifications": {
     "title": "Notifications",
     "unread": "Unread",
-    "markRead": "Mark as Read"
+    "markRead": "Mark as Read",
+    "empty": "No notifications yet",
+    "emptyHint": "Notifications will appear here when events are triggered or statuses change."
   },
   "adminUsers": {
     "title": "User Management",
@@ -134,7 +140,8 @@
     "createFailed": "Failed to create",
     "updateFailed": "Update failed",
     "errorTitleRequired": "Title is required",
-    "errorTitleLength": "Title must be at least 2 characters"
+    "errorTitleLength": "Title must be at least 2 characters",
+    "titlePlaceholder": "Enter event title"
   },
   "audit": {
     "title": "Audit Log",

@@ -19,7 +19,8 @@
     "description": "說明",
     "event": "事件",
     "processing": "執行中…",
-    "operationFailed": "操作失敗，請再試一次"
+    "operationFailed": "操作失敗，請再試一次",
+    "actions": "操作"
   },
   "nav": {
     "brand": "Safety & Response",
@@ -51,7 +52,10 @@
     "myTeamEvents": "我的團隊事件",
     "teamEventsSubtitle": "目前進行中事件的團隊回報狀況",
     "noActiveEvents": "目前沒有進行中事件",
-    "viewTeamReports": "查看團隊回報"
+    "viewTeamReports": "查看團隊回報",
+    "activeEvents": "進行中事件",
+    "unreadNotifications": "未讀通知",
+    "unreported": "未回報人員"
   },
   "events": {
     "title": "事件列表",
@@ -95,7 +99,9 @@
   "notifications": {
     "title": "通知",
     "unread": "未讀",
-    "markRead": "標為已讀"
+    "markRead": "標為已讀",
+    "empty": "目前沒有通知",
+    "emptyHint": "系統通知會在事件提醒或狀態異動時送達。"
   },
   "adminUsers": {
     "title": "使用者管理",
@@ -134,7 +140,8 @@
     "createFailed": "建立失敗",
     "updateFailed": "更新失敗",
     "errorTitleRequired": "請輸入標題",
-    "errorTitleLength": "標題至少 2 字元"
+    "errorTitleLength": "標題至少 2 字元",
+    "titlePlaceholder": "輸入事件標題"
   },
   "audit": {
     "title": "稽核紀錄",
