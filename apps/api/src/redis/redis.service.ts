@@ -42,6 +42,42 @@ export class RedisService implements OnModuleDestroy {
     return res === 'OK';
   }
 
+  async incr(key: string): Promise<number> {
+    if (!this.client) return 0;
+    if (this.client.status === 'wait') await this.client.connect();
+    return this.client.incr(key);
+  }
+
+  async pexpire(key: string, ttlMs: number): Promise<void> {
+    if (!this.client) return;
+    if (this.client.status === 'wait') await this.client.connect();
+    await this.client.pexpire(key, ttlMs);
+  }
+
+  async pttl(key: string): Promise<number> {
+    if (!this.client) return 0;
+    if (this.client.status === 'wait') await this.client.connect();
+    return this.client.pttl(key);
+  }
+
+  async get(key: string): Promise<string | null> {
+    if (!this.client) return null;
+    if (this.client.status === 'wait') await this.client.connect();
+    return this.client.get(key);
+  }
+
+  async set(key: string, value: string, ttlSeconds: number): Promise<void> {
+    if (!this.client) return;
+    if (this.client.status === 'wait') await this.client.connect();
+    await this.client.set(key, value, 'EX', ttlSeconds);
+  }
+
+  async del(key: string): Promise<void> {
+    if (!this.client) return;
+    if (this.client.status === 'wait') await this.client.connect();
+    await this.client.del(key);
+  }
+
   async onModuleDestroy() {
     if (this.client) {
       await this.client.quit();
