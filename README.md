@@ -142,8 +142,9 @@ docker build -f apps/web/Dockerfile --build-arg NEXT_PUBLIC_API_URL=http://local
 合併至 `main` 後，[`.github/workflows/deploy-gke.yml`](.github/workflows/deploy-gke.yml) 會自動：
 
 1. Build & push API / Web 映像至 GCP Artifact Registry  
-2. 執行 `prisma migrate deploy`（K8s Job）  
-3. Rolling update API + Web Deployment（GKE LoadBalancer）
+2. Rolling update API + Web Deployment（GKE LoadBalancer）
+
+**Prisma migrate 不在 CD 內執行**；首次部署或 schema 變更時請依 [`.github/CD.md`](.github/CD.md) 手動跑 migrate（與 seed）。
 
 **一次性設定**：GKE 叢集、K8s `app-env` Secret、GitHub Actions Secrets。詳見 [`.github/CD.md`](.github/CD.md)。
 

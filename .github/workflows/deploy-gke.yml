@@ -16,7 +16,7 @@ env:
 
 jobs:
   deploy:
-    name: Build, migrate & deploy
+    name: Build & deploy
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
     environment: production
@@ -75,35 +75,6 @@ jobs:
 
       - name: Apply namespace
         run: kubectl apply -f infra/k8s/namespace.yaml
-
-      - name: Verify K8s app-env Secret exists
-        run: |
-          if ! kubectl get secret app-env -n safety-demo >/dev/null 2>&1; then
-            echo "::error::Missing Secret app-env in namespace safety-demo."
-            echo "Create it once with kubectl (see .github/CD.md §2) before running CD."
-            exit 1
-          fi
-          echo "Secret app-env found."
-
-      - name: Run Prisma migrate Job
-        run: |
-          kubectl delete job prisma-migrate -n safety-demo --ignore-not-found
-          sed "s|__IMAGE__|${API_IMAGE}|g" infra/k8s/gcp/migrate-job.yaml | kubectl apply -f -
-
-          if ! kubectl wait --for=condition=complete job/prisma-migrate -n safety-demo --timeout=300s; then
-            echo "::group::Migrate job diagnostics"
-            kubectl get job prisma-migrate -n safety-demo -o wide || true
-            kubectl describe job prisma-migrate -n safety-demo || true
-            POD="$(kubectl get pods -n safety-demo -l job-name=prisma-migrate -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-            if [ -n "$POD" ]; then
-              kubectl describe pod "$POD" -n safety-demo || true
-              kubectl logs "$POD" -n safety-demo --all-containers=true --tail=200 || true
-            fi
-            echo "::endgroup::"
-            exit 1
-          fi
-
-          kubectl logs job/prisma-migrate -n safety-demo --tail=50
 
       - name: Deploy API
         run: |
