@@ -60,6 +60,7 @@ kubectl create secret generic app-env -n safety-demo \
 
 ## 故障排除
 
+- **kubectl `gke-gcloud-auth-plugin not found`**：workflow 已安裝 `gke-gcloud-auth-plugin` 並設定 `USE_GKE_GCLOUD_AUTH_PLUGIN=True`
 - **Missing secret**：依上方表格補齊 Secrets  
 - **migrate Job 失敗**：`kubectl logs job/prisma-migrate -n safety-demo`；檢查 `app-env` 的 `DATABASE_URL`  
 - **Image pull 失敗**：確認 GKE 節點 SA 或 Workload Identity 可讀 Artifact Registry  

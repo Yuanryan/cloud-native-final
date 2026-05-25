@@ -12,6 +12,7 @@ concurrency:
 env:
   GCP_REGION: ${{ secrets.GCP_REGION || 'asia-northeast1' }}
   AR_REPO: ${{ secrets.GCP_AR_REPO || 'safety-api' }}
+  USE_GKE_GCLOUD_AUTH_PLUGIN: True
 
 jobs:
   deploy:
@@ -48,6 +49,8 @@ jobs:
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: gke-gcloud-auth-plugin
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet
