@@ -62,6 +62,10 @@ kubectl create secret generic app-env -n safety-demo \
 
 - **kubectl `gke-gcloud-auth-plugin not found`**：workflow 已安裝 `gke-gcloud-auth-plugin` 並設定 `USE_GKE_GCLOUD_AUTH_PLUGIN=True`
 - **Missing secret**：依上方表格補齊 Secrets  
-- **migrate Job 失敗**：`kubectl logs job/prisma-migrate -n safety-demo`；檢查 `app-env` 的 `DATABASE_URL`  
+- **migrate Job 逾時 / 失敗**：
+  1. 確認已建立 K8s Secret **`app-env`**（不是 GitHub Secret；CD 不會自動建立）
+  2. `kubectl logs job/prisma-migrate -n safety-demo` 看 Prisma 錯誤（P1001 連線、P1000 帳密）
+  3. Supabase 請用 **Session pooler** URI（見 `apps/api/.env.example`），並確認沒有 IP allowlist 擋住 GKE 出口
+  4. 本機除錯：`gcloud container clusters get-credentials ...` 後手動跑 §11 的 migrate 指令  
 - **Image pull 失敗**：確認 GKE 節點 SA 或 Workload Identity 可讀 Artifact Registry  
 - **Web 502**：確認 Web build 時的 `NEXT_PUBLIC_API_URL` 與 API LB IP 一致  
