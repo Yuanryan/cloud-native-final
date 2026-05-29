@@ -32,7 +32,15 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
     ThrottlerModule.forRootAsync({
       imports: [RedisModule],
       useFactory: (redis: RedisService) => ({
-        throttlers: [{ name: 'global', ttl: 60000, limit: 60 }],
+        throttlers: [
+          {
+            name: 'global',
+            ttl: 60000,
+            // Env-driven: prod default 60 req/60s/IP, demo/k6 set higher
+            // (e.g. 100000) so single-IP load tests aren't capped at entry.
+            limit: Number(process.env.GLOBAL_RATE_LIMIT ?? 60),
+          },
+        ],
         storage: new RedisThrottlerStorage(redis),
       }),
       inject: [RedisService],

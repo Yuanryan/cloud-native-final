@@ -49,8 +49,11 @@ export class SafetyReportsController {
       'submit',
       { eventId, actor: user, dto },
       {
-        removeOnComplete: { count: 100 },
-        removeOnFail: { count: 500 },
+        // Bumped for demo so the dashboard "Completed" card keeps climbing
+        // during k6 bursts (default cap of 100 makes throughput invisible).
+        // Cap also avoids unbounded Redis memory growth.
+        removeOnComplete: { count: 50000, age: 24 * 3600 },
+        removeOnFail: { count: 5000 },
         attempts: 3,
         backoff: { type: 'exponential', delay: 2000 },
       },
