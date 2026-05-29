@@ -180,6 +180,14 @@
       "latency": "p95 Latency",
       "latencyHint": "avg {avg} ms"
     },
+    "chartTitle": "Live Time Series",
+    "chartSubtitle": "Client-side rolling buffer · last {window} s (2 s sampling)",
+    "chart": {
+      "rps": "RPS",
+      "waiting": "Waiting",
+      "active": "Active",
+      "p95": "p95 (ms)"
+    },
     "stats": {
       "waiting": "Waiting",
       "active": "Active",

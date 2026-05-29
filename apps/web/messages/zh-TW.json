@@ -180,6 +180,14 @@
       "latency": "p95 延遲",
       "latencyHint": "平均 {avg}ms"
     },
+    "chartTitle": "即時時間序列",
+    "chartSubtitle": "前端累積資料，最近 {window} 秒（每 2 秒採樣）",
+    "chart": {
+      "rps": "RPS",
+      "waiting": "等待中",
+      "active": "處理中",
+      "p95": "p95 (ms)"
+    },
     "stats": {
       "waiting": "等待中",
       "active": "處理中",

@@ -8,8 +8,28 @@ import { ExternalLink } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { apiFetch, getSession, API_BASE } from "@/lib/api";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
+
+type ChartPoint = {
+  time: string;
+  rps: number;
+  waiting: number;
+  active: number;
+  p95: number;
+};
+
+const CHART_WINDOW = 30; // ~1 min of history at 2s polling
 
 type QueueStats = {
   queue: string;
@@ -149,6 +169,31 @@ export default function AdminQueuesPage() {
     metrics && metrics.requests.total > 0
       ? (metrics.requests.by_status["5xx"] / metrics.requests.total) * 100
       : 0;
+
+  // Time-series buffer for the live chart: appends one point per poll, keeps
+  // only the last CHART_WINDOW samples (~1 min at 2s interval).
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  useEffect(() => {
+    if (!data || !metrics || rps === null) return;
+    const time = new Date().toLocaleTimeString(undefined, {
+      hour12: false,
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    setChartData((prev) => {
+      const next: ChartPoint = {
+        time,
+        rps: Number(rps.toFixed(2)),
+        waiting: data.counts.waiting,
+        active: data.counts.active,
+        p95: Math.round(metrics.latency_seconds.p95 * 1000),
+      };
+      const updated = [...prev, next];
+      return updated.length > CHART_WINDOW
+        ? updated.slice(-CHART_WINDOW)
+        : updated;
+    });
+  }, [data, metrics, rps]);
 
   useEffect(() => {
     if (!data?.enabled) return;
@@ -313,6 +358,101 @@ export default function AdminQueuesPage() {
             </Card>
           </div>
         </>
+      )}
+
+      {chartData.length > 1 && (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle className="text-base">{t("chartTitle")}</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              {t("chartSubtitle", { window: CHART_WINDOW * 2 })}
+            </p>
+          </CardHeader>
+          <CardContent style={{ height: 240 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 5, right: 12, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="time"
+                  stroke="var(--muted-foreground)"
+                  fontSize={11}
+                  tickMargin={6}
+                />
+                <YAxis
+                  yAxisId="count"
+                  stroke="var(--muted-foreground)"
+                  fontSize={11}
+                  width={40}
+                />
+                <YAxis
+                  yAxisId="ms"
+                  orientation="right"
+                  stroke="var(--muted-foreground)"
+                  fontSize={11}
+                  width={40}
+                  tickFormatter={(v: number) => `${v}ms`}
+                />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "var(--card)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    fontSize: 12,
+                  }}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: 12 }}
+                  iconType="line"
+                  iconSize={12}
+                />
+                <Line
+                  yAxisId="count"
+                  type="monotone"
+                  dataKey="rps"
+                  name={t("chart.rps")}
+                  stroke="var(--info)"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  yAxisId="count"
+                  type="monotone"
+                  dataKey="waiting"
+                  name={t("chart.waiting")}
+                  stroke="var(--warning)"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  yAxisId="count"
+                  type="monotone"
+                  dataKey="active"
+                  name={t("chart.active")}
+                  stroke="var(--success)"
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  yAxisId="ms"
+                  type="monotone"
+                  dataKey="p95"
+                  name={t("chart.p95")}
+                  stroke="var(--destructive)"
+                  strokeWidth={2}
+                  strokeDasharray="4 2"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
 
       {data && (
