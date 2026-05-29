@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-internal
+  namespace: safety-demo
+  labels:
+    app: safety-api
+spec:
+  # Headless: DNS lookup returns one A record per Pod IP, enabling the
+  # aggregator endpoint to fan out to all sibling Pods.
+  clusterIP: None
+  selector:
+    app: safety-api
+  publishNotReadyAddresses: false
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000

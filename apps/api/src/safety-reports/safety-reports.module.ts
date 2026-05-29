@@ -8,6 +8,7 @@ import { AuditModule } from '../audit/audit.module';
 import { MetricsModule } from '../metrics/metrics.module';
 import { SAFETY_REPORTS_QUEUE } from '../queues/queue-names';
 import { QueueAdminController } from '../queues/queue-admin.controller';
+import { MetricsAggregatorService } from '../queues/metrics-aggregator.service';
 
 // When REDIS_URL is unset (e.g. CI e2e), we register a no-op queue stub so the
 // controller's @InjectQueue resolves, AND skip registering SafetyReportsProcessor
@@ -27,7 +28,11 @@ export class SafetyReportsModule {
           BullModule.registerQueue({ name: SAFETY_REPORTS_QUEUE }),
         ],
         controllers: [SafetyReportsController, QueueAdminController],
-        providers: [SafetyReportsService, SafetyReportsProcessor],
+        providers: [
+          SafetyReportsService,
+          SafetyReportsProcessor,
+          MetricsAggregatorService,
+        ],
       };
     }
 
@@ -37,6 +42,7 @@ export class SafetyReportsModule {
       controllers: [SafetyReportsController, QueueAdminController],
       providers: [
         SafetyReportsService,
+        MetricsAggregatorService,
         {
           provide: getQueueToken(SAFETY_REPORTS_QUEUE),
           useValue: {

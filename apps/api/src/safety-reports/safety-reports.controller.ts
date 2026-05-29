@@ -30,7 +30,9 @@ export class SafetyReportsController {
   ) {}
 
   @HttpCode(HttpStatus.ACCEPTED)
-  @Throttle({ global: { ttl: 60000, limit: 10 } })
+  // NOTE: per-user rate limit temporarily relaxed for k6 burst demos.
+  // Production should restore: @Throttle({ global: { ttl: 60000, limit: 10 } })
+  @Throttle({ global: { ttl: 60000, limit: 10000 } })
   @Post('reports')
   @Roles(Role.EMPLOYEE, Role.MANAGER)
   async submit(

@@ -46,6 +46,10 @@ type QueueStats = {
 
 type MetricsSummary = {
   pod: string;
+  pods?: number;
+  podNames?: string[];
+  aggregated?: boolean;
+  aggregationNote?: string;
   uptime_seconds: number;
   requests: {
     total: number;
@@ -142,7 +146,8 @@ export default function AdminQueuesPage() {
 
   const { data: metrics } = useQuery({
     queryKey: ["admin-metrics-summary"],
-    queryFn: () => apiFetch<MetricsSummary>("/admin/queues/metrics-summary"),
+    queryFn: () =>
+      apiFetch<MetricsSummary>("/admin/queues/metrics-summary-aggregated"),
     enabled: mounted && getSession()?.user.role === "ADMIN",
     refetchInterval: 2000,
     refetchIntervalInBackground: false,
@@ -555,22 +560,49 @@ export default function AdminQueuesPage() {
                 <>
                   <div>
                     <span className="font-medium text-foreground">
-                      {t("servingPod")}:
+                      {metrics.aggregated
+                        ? t("aggregatedFrom")
+                        : t("servingPod")}
+                      :
                     </span>{" "}
-                    <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                      {metrics.pod}
-                    </code>{" "}
-                    <span className="text-xs">{t("servingPodHint")}</span>
+                    {metrics.aggregated && metrics.podNames ? (
+                      <span className="inline-flex flex-wrap items-center gap-1">
+                        <span>{t("podCount", { n: metrics.pods ?? 0 })}</span>
+                        {metrics.podNames.map((p) => (
+                          <code
+                            key={p}
+                            className="rounded bg-muted px-1.5 py-0.5 text-xs"
+                          >
+                            {p}
+                          </code>
+                        ))}
+                      </span>
+                    ) : (
+                      <>
+                        <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                          {metrics.pod}
+                        </code>{" "}
+                        <span className="text-xs">{t("servingPodHint")}</span>
+                      </>
+                    )}
+                    {metrics.aggregationNote && (
+                      <span
+                        className="ml-2 text-xs"
+                        style={{ color: "var(--warning)" }}
+                      >
+                        ⚠ {metrics.aggregationNote}
+                      </span>
+                    )}
                   </div>
                   <div>
                     <span className="font-medium text-foreground">
-                      {t("uptime")}:
+                      {metrics.aggregated ? t("uptimeMax") : t("uptime")}:
                     </span>{" "}
                     {formatUptime(metrics.uptime_seconds)}
                   </div>
                   <div>
                     <span className="font-medium text-foreground">
-                      {t("memory")}:
+                      {metrics.aggregated ? t("memoryAvg") : t("memory")}:
                     </span>{" "}
                     {metrics.memory_mb} MB
                   </div>
