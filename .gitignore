@@ -8,6 +8,10 @@ coverage
 .DS_Store
 .playwright-mcp/
 
+# Load-test artifacts (contain JWTs — never commit)
+infra/k6/load-test-tokens.json
+infra/k6/load-test-tokens-business.json
+
 # Personal
 CLAUDE.md
 TODO.md

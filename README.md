@@ -182,8 +182,10 @@ pnpm --filter api test:cov
 # 3. API E2E 整合測試（13 個案例，Prisma/Redis 皆以 test double 取代，不需啟動任何服務）
 pnpm --filter api test:e2e
 
-# 4. k6 負載測試（需先 docker compose up）
-BASE_URL=http://localhost k6 run infra/k6/business.js
+# 4. k6 業務混合負載（67 VU，需先準備 tokens，見下方「負載測試」章節）
+BASE_URL=http://localhost TOKENS_FILE=/scripts/load-test-tokens-business.json \
+  docker run --rm -v "$PWD/infra/k6:/scripts" -e BASE_URL -e TOKENS_FILE \
+  grafana/k6 run /scripts/business.js
 
 # 5. 前端 Playwright E2E（需先啟動完整 stack）
 PLAYWRIGHT_BASE_URL=http://localhost pnpm --filter web test:e2e
@@ -243,25 +245,25 @@ PLAYWRIGHT_BASE_URL=http://localhost pnpm --filter web test:e2e
 
 ### k6 負載測試情境（Layer 3）
 
-**`business.js`**（日常混合負載，10 VU）：
+**Rate limit 設計**：登入 5 req/min/IP；回報 API 10 req/min/**per user**（`UserThrottlerGuard` 依 JWT user id 計數，不同帳號互不影響）。
+
+#### `business.js`（日常混合負載，67 VU）
 
 ```
-Stage 1：0 → 10 VU，暖機 30s
-Stage 2：10 VU  穩定負載 1 分鐘
-Stage 3：10 → 0 VU  冷卻 10s
+Stage 1：0 → 67 VU，暖機 30s
+Stage 2：67 VU  穩定負載 1 分鐘
+Stage 3：67 → 0 VU  冷卻 10s
 ```
 
-登入在 `setup()` 各執行一次（admin / manager / employee），避免觸發登入 rate limit（5 req/min/IP）。
+Admin/Manager token 在 `setup()` 各登入一次；Employee 帳號從 `TOKENS_FILE` 讀取，每 VU 使用唯一帳號（不觸發 rate limit）。
 
 | 情境 | 對應前端 | 主要 API |
 |------|----------|----------|
 | `health_check` | — | `GET /health` |
 | `admin_workflow` | `/admin/events` → `/events/:id` | `me`、events、stats、**全公司 reports**（ADMIN 不回報） |
 | `manager_workflow` | `/events/:id` | `me`、events、stats、**reports/me**、**reports/team**（直屬下屬） |
-| `employee_workflow` | `/events/:id` | `me`、events、**reports/me**（低機率抽樣 POST → 202） |
+| `employee_workflow` | `/events/:id` | `me`、events、**reports/me** + **POST 回報 → 202**（每 VU 獨立帳號） |
 | `notifications` | `/dashboard`、通知頁 | `GET /notifications` |
-
-**`safety-report-burst.js`**：緊急事件大量回報（高併發 POST → 202 / BullMQ），與 business 互補。
 
 **Threshold（business.js）**：
 
@@ -271,7 +273,26 @@ Stage 3：10 → 0 VU  冷卻 10s
 | `http_req_duration` p(95) | < 800ms |
 | `report_submit_duration` p(95) | < 1000ms |
 | `login_error_rate` | < 1% |
-| `reports_accepted_202` | ≥ 1（抽樣至少一筆 202） |
+| `reports_accepted_202` | ≥ 50 |
+
+#### `safety-report-burst.js`（緊急事件爆發，6767 VU）
+
+模擬 6767 位員工同時提交安全回報，各 VU 持有唯一帳號（per-user rate limit 各自計數）。
+
+```
+Stage 1：0 → 2000 VU（2 分鐘）
+Stage 2：2000 → 6767 VU（3 分鐘）
+Stage 3：維持 6767 VU（2 分鐘）
+Stage 4：降至 0（1 分鐘）
+```
+
+**Threshold（burst）**：
+
+| 指標 | 門檻 |
+|------|------|
+| `reports_accepted_202` | ≥ 6000 |
+| `http_req_failed{name:submit}` | < 10% |
+| `http_req_duration{name:submit}` p(95) | < 800ms |
 
 ---
 
@@ -284,10 +305,56 @@ Stage 3：10 → 0 VU  冷卻 10s
 
 ## 負載測試（k6）
 
-需本機安裝 [k6](https://k6.io/)。對 Nginx 健康檢查做輕量壓測：
+> **不建議在 Cloud Shell 跑 burst（6767 VU）**：記憶體需求約 4–8 GB。建議用 GCP VM（e2-highmem-4 以上），測完刪除。
+
+### 帳號準備與 Token 產生（一次性）
 
 ```bash
-BASE_URL=http://localhost k6 run infra/k6/health.js
+# 1. 建立 6767 個 loadtest-*@demo.com EMPLOYEE（需 DB 已跑過主 seed）
+pnpm db:seed:loadtest
+
+# 2. 離線產生 JWT（不佔 login rate limit）
+DATABASE_URL=<your-db-url> JWT_SECRET=<your-secret> pnpm loadtest:tokens
+# 輸出：
+#   infra/k6/load-test-tokens.json          (6767 筆，供 burst 用)
+#   infra/k6/load-test-tokens-business.json (前 67 筆，供 business 用)
+```
+
+> `load-test-tokens.json` 含 JWT，已加入 `.gitignore`，勿 commit。
+
+### health.js — 輕量煙霧測試（20 VU）
+
+```bash
+BASE_URL=http://<api-ip> \
+  docker run --rm \
+    -e BASE_URL \
+    grafana/k6 run - < infra/k6/health.js
+```
+
+### business.js — 業務混合流程（67 VU）
+
+```bash
+docker run --rm \
+  -v "$PWD/infra/k6:/scripts" \
+  -e BASE_URL=http://<api-ip> \
+  -e TOKENS_FILE=/scripts/load-test-tokens-business.json \
+  grafana/k6 run /scripts/business.js
+```
+
+### safety-report-burst.js — 緊急爆發（6767 VU）
+
+```bash
+# 取得 ACTIVE 事件 ID（從 admin API 或 Console）
+EVENT_ID=$(curl -s "http://<api-ip>/api/v1/events" \
+  -H "Authorization: Bearer <admin-token>" | python3 -c \
+  "import sys,json; ev=[e for e in json.load(sys.stdin) if e['status']=='ACTIVE']; print(ev[0]['id'])")
+
+docker run --rm \
+  -v "$PWD/infra/k6:/scripts" \
+  -e BASE_URL=http://<api-ip> \
+  -e EVENT_ID="$EVENT_ID" \
+  -e TOKENS_FILE=/scripts/load-test-tokens.json \
+  grafana/k6 run /scripts/safety-report-burst.js
 ```
 
 ## 專案結構（精簡）
@@ -369,15 +436,11 @@ kubectl get pods -n safety-demo -w
 - **UI/UX（已實作）**：語意色彩系統（CSS 變數 `--success`/`--warning`/`--info`，含深色模式）；`StatusBadge` 元件統一全站狀態顯示；`Breadcrumb` 元件套用於所有二、三層頁面；Dashboard 摘要卡（進行中事件數、未讀通知數）；緊急回報頁改為大型卡片選擇器；Header 導覽 active 狀態與觸控目標強化；通知頁空狀態引導；Admin 欄位、角色 badge、稽核 action badge 分色；全站日期格式統一（`2026/05/17`）；修正所有頁面 SSR/Client hydration mismatch；**頁面淡入滑動過渡動畫**（`@keyframes page-fade-in`，0.22s ease-out，套用於 AppShell `<main>`）；**語言切換器重設計**（Globe 圖示 + `中文 · EN` 文字切換，移除邊框 segmented control）。
 - **i18n**：前端已實作繁體中文 / English 雙語（`next-intl` v4，URL-based locale routing，Header 語言切換器）。後端錯誤訊息與通知內文可進一步改為 i18n template key。
 - **高流量防護（三層防禦，已實作）**：
-  1. **入口層 — 速率限制**：`@nestjs/throttler` + Redis-backed storage——全域 60 req/60s、登入 5 req/60s、安全回報 10 req/60s；`/health`、`/metrics`、`/admin/queues` 排除限流。Lua script 確保 INCR + PEXPIRE 原子性。Redis 不可用時 graceful degradation（允許所有請求，不拋 500）。
+  1. **入口層 — 速率限制**：`@nestjs/throttler` + Redis-backed storage——全域 60 req/60s、登入 5 req/60s/IP、安全回報 10 req/60s/**per user**（`UserThrottlerGuard` 依 JWT user id 計數，多帳號互不影響）；`/health`、`/metrics`、`/admin/queues` 排除限流。Lua script 確保 INCR + PEXPIRE 原子性。Redis 不可用時 graceful degradation（允許所有請求，不拋 500）。
   2. **接收層 — 訊息佇列**：`POST /events/:id/reports` 透過 **BullMQ (Redis-backed)** 異步化——API 在 50ms 內回 `202 Accepted`（含 `jobId`），DB 寫入與稽核交給 worker。員工體感「回報成功」與底層寫入解耦；retry 3 次（exponential backoff），完成保留 100 筆、失敗保留 500 筆便於除錯。
   3. **處理層 — Worker**：`@Processor(SAFETY_REPORTS_QUEUE)` 與 API 同 Pod 啟動，HPA 觸發擴容時 worker 也跟著擴展（未來可拆獨立 Deployment 達成完全獨立的水平擴展與故障隔離）。
 - **佇列儀表板**：`/admin/queues`（HTTP Basic Auth，帳號 `admin`，密碼來自 `QUEUE_DASHBOARD_PASSWORD`，預設亦為 `admin`）由 [`@bull-board/express`](https://github.com/felixmosh/bull-board) 以 Express middleware 形式掛在 Nest 之上，bypass `api/v1` 前綴，可即時觀察 `safety-reports` queue 的 waiting / active / completed / failed / delayed 數量。
-- **負載測試（k6）**：[`infra/k6/safety-report-burst.js`](infra/k6/safety-report-burst.js) 模擬事件爆發，ramping VUs 0 → 500 → 0，驗證 `202` 回應率與 p95 < 800ms：
-  ```bash
-  BASE_URL=http://34.146.138.147 EVENT_ID=<active-evt-id> TOKEN=<jwt> \
-    k6 run infra/k6/safety-report-burst.js
-  ```
+- **負載測試（k6）**：[`infra/k6/safety-report-burst.js`](infra/k6/safety-report-burst.js) 模擬事件爆發，ramping VUs 0 → 6767 → 0，**6767 個唯一帳號各回報一次**，驗證 `202` 接受率 ≥ 6000 與 p95 < 800ms；[`infra/k6/business.js`](infra/k6/business.js) 以 67 VU 模擬三角色日常混合流程（讀取 + 回報）。Rate limit 依 JWT user id 計數（`UserThrottlerGuard`），不同帳號互不影響。執行前需先 `pnpm db:seed:loadtest` + `pnpm loadtest:tokens` 產生 token 檔。詳見 README「負載測試」章節。
 - **讀取快取（已實作）**：`GET /events` 依角色分為三組 key（`cache:events:list:ADMIN/MANAGER/EMPLOYEE`，TTL 30s）；`GET /departments` 單一 key（TTL 300s）。寫入時（create/update/delete）立即 invalidate，確保 Admin 狀態變更即時可見。
 - **可靠性 / SPOF**：Compose 為單節點展示；生產環境可改 **多 API 副本 + Nginx upstream**、**DB 主從**、**Redis Sentinel**、**K8s readiness/liveness**（對應本專案 `/health`、`/health/ready`）。
 - **認證**：示範使用 `localStorage` 存 JWT；生產建議 **HttpOnly Cookie** 或 **BFF**。

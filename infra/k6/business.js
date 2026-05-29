@@ -1,19 +1,21 @@
 /**
- * k6 業務情境負載測試 — 對齊目前前端三角色流程
+ * k6 業務情境負載測試 — 67 VU，對齊三角色前端流程
  *
- * ADMIN:  /dashboard → /admin/events → /events/:id（全公司 stats + reports，不回報）
- * MANAGER: /dashboard → /events → /events/:id（stats + 自己的回報 + 轄下 reports/team）
- * EMPLOYEE: /dashboard → /events → /events/:id（僅 reports/me，可提交回報）
+ * ADMIN:    /admin/events → /events/:id（stats + 全公司 reports，不回報）
+ * MANAGER:  /events/:id（stats + reports/me + reports/team 直屬下屬）
+ * EMPLOYEE: /events/:id（reports/me + 每 VU 各自提交回報 → 202）
  *
- * 執行（需完整 stack 或 GKE API）：
- *   BASE_URL=http://<api-ip> k6 run infra/k6/business.js
- *
- * 帳密可覆寫（預設為 seed）：
- *   ADMIN_EMAIL=admin@demo.com MANAGER_EMAIL=manager@demo.com EMP_EMAIL=employee1@demo.com
+ * 執行（需 GKE API + 帳號已 seed:loadtest + tokens 已產生）：
+ *   docker run --rm \
+ *     -v "$PWD/infra/k6:/scripts" \
+ *     -e BASE_URL=http://34.84.115.96 \
+ *     -e TOKENS_FILE=/scripts/load-test-tokens-business.json \
+ *     grafana/k6 run /scripts/business.js
  */
 import http from "k6/http";
 import { check, group, sleep } from "k6";
 import { Counter, Rate, Trend } from "k6/metrics";
+import { loadTokens, tokenForVu, bearerHeader } from "./lib/accounts.js";
 
 const loginErrors = new Rate("login_error_rate");
 const reportSubmitDuration = new Trend("report_submit_duration", true);
@@ -21,17 +23,16 @@ const reportsAccepted = new Counter("reports_accepted_202");
 
 export const options = {
   stages: [
-    { duration: "30s", target: 10 },
-    { duration: "1m", target: 10 },
+    { duration: "30s", target: 67 },
+    { duration: "1m",  target: 67 },
     { duration: "10s", target: 0 },
   ],
   thresholds: {
-    // 讀取請求與 submit 分開評估（submit 可能因 10 req/min 偶發 429）
     "http_req_failed{load:read}": ["rate<0.01"],
     http_req_duration: ["p(95)<800"],
     report_submit_duration: ["p(95)<1000"],
     login_error_rate: ["rate<0.01"],
-    reports_accepted_202: ["count>=1"],
+    reports_accepted_202: ["count>=50"],
   },
 };
 
@@ -40,8 +41,7 @@ const ADMIN_EMAIL = __ENV.ADMIN_EMAIL || "admin@demo.com";
 const ADMIN_PASS = __ENV.ADMIN_PASS || "Password123!";
 const MANAGER_EMAIL = __ENV.MANAGER_EMAIL || "manager@demo.com";
 const MANAGER_PASS = __ENV.MANAGER_PASS || "Password123!";
-const EMP_EMAIL = __ENV.EMP_EMAIL || "employee1@demo.com";
-const EMP_PASS = __ENV.EMP_PASS || "Password123!";
+const TOKENS_FILE = __ENV.TOKENS_FILE || "/scripts/load-test-tokens-business.json";
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -83,15 +83,16 @@ function firstActiveEvent(events) {
   return events.find((e) => e.status === "ACTIVE") || null;
 }
 
-/** 各角色 token 在 setup 取得一次，避免每輪反覆登入觸發 5 req/min 限制 */
+/** setup: admin/manager 用 HTTP login（各 1 次）；employee tokens 從檔案讀取 */
 export function setup() {
   const adminToken = loginOnce(ADMIN_EMAIL, ADMIN_PASS);
   const managerToken = loginOnce(MANAGER_EMAIL, MANAGER_PASS);
-  const employeeToken = loginOnce(EMP_EMAIL, EMP_PASS);
-  if (!adminToken || !managerToken || !employeeToken) {
+  if (!adminToken || !managerToken) {
     throw new Error("setup login failed — check BASE_URL and seed accounts");
   }
-  return { adminToken, managerToken, employeeToken };
+  const employeeTokens = loadTokens(TOKENS_FILE);
+  console.log(`Loaded ${employeeTokens.length} employee tokens for 67 VUs.`);
+  return { adminToken, managerToken, employeeTokens };
 }
 
 export default function (data) {
@@ -101,7 +102,7 @@ export default function (data) {
     sleep(0.1);
   });
 
-  // ADMIN：/admin/events 列表 → 事件詳情（stats + 全公司 reports）
+  // ADMIN：列事件 → 事件詳情（全公司 stats + reports）
   group("admin_workflow", function () {
     const token = data.adminToken;
     const headers = authHeaders(token);
@@ -113,10 +114,7 @@ export default function (data) {
     check(eventsRes, { "admin list events 200": (r) => r.status === 200 });
 
     const active = firstActiveEvent(parseEvents(eventsRes.body));
-    if (!active) {
-      sleep(0.3);
-      return;
-    }
+    if (!active) { sleep(0.3); return; }
 
     const detailRes = http.get(`${BASE}/api/v1/events/${active.id}`, {
       headers,
@@ -139,7 +137,7 @@ export default function (data) {
     sleep(0.3);
   });
 
-  // MANAGER：事件詳情（stats + 自己的回報 + 轄下 direct reports）
+  // MANAGER：stats + reports/me + reports/team（直屬下屬）
   group("manager_workflow", function () {
     const token = data.managerToken;
     const headers = authHeaders(token);
@@ -151,10 +149,7 @@ export default function (data) {
     check(eventsRes, { "manager list events 200": (r) => r.status === 200 });
 
     const active = firstActiveEvent(parseEvents(eventsRes.body));
-    if (!active) {
-      sleep(0.3);
-      return;
-    }
+    if (!active) { sleep(0.3); return; }
 
     const statsRes = http.get(`${BASE}/api/v1/events/${active.id}/stats`, {
       headers,
@@ -177,10 +172,13 @@ export default function (data) {
     sleep(0.3);
   });
 
-  // EMPLOYEE：事件詳情（僅自己的回報，不含 stats / team）
+  // EMPLOYEE：每 VU 持有唯一 loadtest 帳號，各自讀取 + 提交回報
   group("employee_workflow", function () {
-    const token = data.employeeToken;
-    const headers = authHeaders(token);
+    const account = tokenForVu(data.employeeTokens, __VU);
+    const headers = {
+      Authorization: bearerHeader(account),
+      "Content-Type": "application/json",
+    };
 
     const meRes = http.get(`${BASE}/api/v1/auth/me`, { headers, tags: { name: "auth_me", load: "read" } });
     check(meRes, { "employee me 200": (r) => r.status === 200 });
@@ -189,10 +187,7 @@ export default function (data) {
     check(eventsRes, { "employee list events 200": (r) => r.status === 200 });
 
     const active = firstActiveEvent(parseEvents(eventsRes.body));
-    if (!active) {
-      sleep(0.3);
-      return;
-    }
+    if (!active) { sleep(0.3); return; }
 
     const myReportRes = http.get(`${BASE}/api/v1/events/${active.id}/reports/me`, {
       headers,
@@ -200,37 +195,38 @@ export default function (data) {
     });
     check(myReportRes, { "employee my report 200": (r) => r.status === 200 });
 
-    // 回報 API 限 10 req/min/IP；業務測試以讀取為主，低機率抽樣提交（大量提交請用 safety-report-burst.js）
-    if (Math.random() < 0.08) {
-      const status = Math.random() > 0.2 ? "SAFE" : "NEED_HELP";
-      const start = Date.now();
-      const reportRes = http.post(
-        `${BASE}/api/v1/events/${active.id}/reports`,
-        JSON.stringify({ status }),
-        { headers, tags: { name: "submit_report" } },
-      );
-      reportSubmitDuration.add(Date.now() - start);
+    // 每 VU 擁有唯一 user token，10 req/min per user 限制各自獨立
+    const status = Math.random() > 0.2 ? "SAFE" : "NEED_HELP";
+    const start = Date.now();
+    const reportRes = http.post(
+      `${BASE}/api/v1/events/${active.id}/reports`,
+      JSON.stringify({ status }),
+      { headers, tags: { name: "submit_report" } },
+    );
+    reportSubmitDuration.add(Date.now() - start);
 
-      const accepted = check(reportRes, {
-        "employee submit 202": (r) => r.status === 202,
-        "employee submit has jobId": (r) => {
-          try {
-            return !!JSON.parse(r.body).jobId;
-          } catch {
-            return false;
-          }
-        },
-      });
-      if (accepted) reportsAccepted.add(1);
-    }
+    const accepted = check(reportRes, {
+      "employee submit 202": (r) => r.status === 202,
+      "employee submit has jobId": (r) => {
+        try {
+          return !!JSON.parse(r.body).jobId;
+        } catch {
+          return false;
+        }
+      },
+    });
+    if (accepted) reportsAccepted.add(1);
 
     sleep(0.3);
   });
 
-  // 所有角色：通知列表（Dashboard 未讀數）
+  // 通知（Dashboard 未讀數）
   group("notifications", function () {
-    const token = data.employeeToken;
-    const headers = authHeaders(token);
+    const account = tokenForVu(data.employeeTokens, __VU);
+    const headers = {
+      Authorization: bearerHeader(account),
+      "Content-Type": "application/json",
+    };
 
     const notifRes = http.get(`${BASE}/api/v1/notifications`, {
       headers,
