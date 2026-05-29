@@ -65,6 +65,11 @@ export function setup() {
 }
 
 export default function (data) {
+  // Each VU submits exactly once (models "6767 employees each report once").
+  // Without this guard, ramping-vus loops VUs and a shared token would exceed
+  // any per-user rate limit.
+  if (__ITER > 0) return;
+
   // Each VU gets its own token — no rate-limit collision between users
   const account = tokenForVu(data.tokens, __VU);
 
