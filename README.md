@@ -89,11 +89,31 @@ flowchart LR
    或分兩個終端機：在**根目錄**執行 `pnpm dev:api` 與 `pnpm dev:web`。若你人在 **`apps/api` 目錄**，沒有 `dev:api` 這個指令，請用 **`pnpm dev`** 或 **`pnpm start:dev`**（同一件事）。
 
    **注意**：Nest 啟動時會先印出「Mapped route」日誌；**若尚未開 Postgres**，先前版本會在這之後因 Prisma 連線失敗而整支程式結束（其實沒有在 listen）。目前改為 **延遲連線**，API 會先成功 `listen`，`GET /health` 可通；**登入、事件等需 DB 的 API** 仍要在 Postgres 起來並跑過 migrate/seed 後才會正常。
-5. 瀏覽器：**前端** `http://localhost:3001`（`pnpm dev:web` 固定使用 3001，避免與 API 搶埠），**API** `http://localhost:3000`。請在 `apps/web/.env.local`（或環境變數）設定 `NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1`，否則登入請求會誤打到 Next 本身而出現 **404**。登入種子帳號（密碼皆為 `Password123!`）：
+5. 瀏覽器：**前端** `http://localhost:3001`（`pnpm dev:web` 固定使用 3001，避免與 API 搶埠），**API** `http://localhost:3000`。請在 `apps/web/.env.local`（或環境變數）設定 `NEXT_PUBLIC_API_URL=http://localhost:3000/api/v1`，否則登入請求會誤打到 Next 本身而出現 **404**。   登入種子帳號（密碼皆為 `Password123!`）：
 
-   - `admin@demo.com` — ADMIN
-   - `manager@demo.com` — MANAGER
-   - `employee1@demo.com` / `employee2@demo.com` / `employee3@demo.com` — EMPLOYEE
+   | 角色 | Email | 說明 |
+   |------|-------|------|
+   | ADMIN | `admin@demo.com` | 系統管理員 |
+   | MANAGER（總部） | `ceo@demo.com` | 執行長，直屬管理各部門主管 |
+   | MANAGER | `manager@demo.com` | 研發主管 |
+   | MANAGER | `rnd-a.manager@demo.com` | 研發A主管 |
+   | MANAGER | `rnd-b.manager@demo.com` | 研發B主管 |
+   | MANAGER | `sales.manager@demo.com` | 業務主管 |
+   | MANAGER | `hr.manager@demo.com` | 人資主管 |
+   | MANAGER | `finance.manager@demo.com` | 財務主管 |
+   | MANAGER | `marketing.manager@demo.com` | 行銷主管 |
+   | EMPLOYEE | `employee1@demo.com` / `employee2@demo.com` | 研發A員工 |
+   | EMPLOYEE | `rnd-b.emp1@demo.com` / `rnd-b.emp2@demo.com` | 研發B員工 |
+   | EMPLOYEE | `employee3@demo.com` / `sales.emp2@demo.com` | 業務部員工 |
+   | EMPLOYEE | `hr.emp1@demo.com` / `hr.emp2@demo.com` | 人資部員工 |
+   | EMPLOYEE | `finance.emp1@demo.com` / `finance.emp2@demo.com` | 財務部員工 |
+   | EMPLOYEE | `marketing.emp1@demo.com` / `marketing.emp2@demo.com` | 行銷部員工 |
+
+   **Supabase 既有 DB 擴充**：
+   - 總部組織：[`infra/sql/supabase-hq-org-seed.sql`](infra/sql/supabase-hq-org-seed.sql)
+   - 研發子團隊（研發A / 研發B）：[`infra/sql/supabase-rnd-teams-seed.sql`](infra/sql/supabase-rnd-teams-seed.sql)（會將 `employee1` / `employee2` 移至研發A）
+
+   兩份 SQL 皆可重複執行，不會清掉既有事件／回報。
 
 ## Docker Compose（完整堆疊）
 

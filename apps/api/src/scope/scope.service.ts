@@ -24,7 +24,7 @@ export class ScopeService {
 
   /**
    * Users expected to submit safety reports (exclude ADMIN).
-   * MANAGER scope: department subtree OR direct reports (EMPLOYEE/MANAGER only).
+   * MANAGER scope: direct reports only (managerId = actor.id).
    * ADMIN scope: all EMPLOYEE + MANAGER in company.
    */
   async getScopedReporterUserIds(actor: AuthUser): Promise<string[]> {
@@ -36,25 +36,14 @@ export class ScopeService {
       return users.map((u) => u.id);
     }
     if (actor.role === Role.MANAGER) {
-      const deptIds = await this.getDepartmentTreeIds(actor.departmentId);
-      const inDept = await this.prisma.user.findMany({
-        where: {
-          role: { in: [Role.EMPLOYEE, Role.MANAGER] },
-          departmentId: { in: deptIds },
-        },
-        select: { id: true },
-      });
-      const reports = await this.prisma.user.findMany({
+      const directs = await this.prisma.user.findMany({
         where: {
           managerId: actor.id,
           role: { in: [Role.EMPLOYEE, Role.MANAGER] },
         },
         select: { id: true },
       });
-      const set = new Set<string>();
-      inDept.forEach((u) => set.add(u.id));
-      reports.forEach((u) => set.add(u.id));
-      return [...set];
+      return directs.map((u) => u.id);
     }
     // EMPLOYEE: only self
     return [actor.id];

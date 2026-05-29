@@ -98,16 +98,32 @@ describe('ScopeService', () => {
       );
     });
 
-    it('returns union of department subtree and direct reports for MANAGER', async () => {
-      prismaDept.findMany.mockResolvedValue([]);
-      prismaUser.findMany
-        .mockResolvedValueOnce([{ id: 'emp-dept' }])
-        .mockResolvedValueOnce([{ id: 'emp-direct' }]);
+    it('returns only direct reports for MANAGER', async () => {
+      prismaUser.findMany.mockResolvedValue([
+        { id: 'mgr-a' },
+        { id: 'mgr-b' },
+      ]);
 
       const result = await service.getScopedReporterUserIds(managerUser);
 
-      expect(result).toContain('emp-dept');
-      expect(result).toContain('emp-direct');
+      expect(result).toEqual(['mgr-a', 'mgr-b']);
+      expect(prismaUser.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            managerId: managerUser.id,
+          }),
+        }),
+      );
+      // department subtree should NOT be queried
+      expect(prismaDept.findMany).not.toHaveBeenCalled();
+    });
+
+    it('returns empty array when MANAGER has no direct reports', async () => {
+      prismaUser.findMany.mockResolvedValue([]);
+
+      const result = await service.getScopedReporterUserIds(managerUser);
+
+      expect(result).toEqual([]);
     });
 
     it('returns only self id for EMPLOYEE', async () => {

@@ -43,7 +43,7 @@ type Stats = {
 };
 
 type ReportRow = {
-  id: string;
+  id: string | null;
   status: string;
   message: string | null;
   user: { id: string; name: string; email: string; department: { name: string } };
@@ -260,11 +260,14 @@ export default function EventDetailPage() {
                 </TableHeader>
                 <TableBody>
                   {reports.map((r) => (
-                    <TableRow key={r.id}>
+                    <TableRow key={r.user.id}>
                       <TableCell>{r.user.name}</TableCell>
                       <TableCell>{r.user.department.name}</TableCell>
                       <TableCell>
-                        <StatusBadge status={r.status} />
+                        <StatusBadge
+                          status={r.status}
+                          label={r.status === "NO_RESPONSE" ? ts("noResponse") : undefined}
+                        />
                       </TableCell>
                       <TableCell className="max-w-xs truncate text-muted-foreground">
                         {r.message ?? "—"}

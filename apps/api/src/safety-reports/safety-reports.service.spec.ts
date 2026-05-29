@@ -47,6 +47,26 @@ const mockDraftEvent = {
   status: EventStatus.DRAFT,
 };
 
+const mockManagerAUser = {
+  id: 'mgr-a-1',
+  email: 'rnd-a.manager@demo.com',
+  name: '研發A主管',
+  role: Role.MANAGER,
+  departmentId: 'dept-rnd-a',
+  managerId: 'mgr-1',
+  department: { id: 'dept-rnd-a', name: '研發A' },
+};
+
+const mockManagerBUser = {
+  id: 'mgr-b-1',
+  email: 'rnd-b.manager@demo.com',
+  name: '研發B主管',
+  role: Role.MANAGER,
+  departmentId: 'dept-rnd-b',
+  managerId: 'mgr-1',
+  department: { id: 'dept-rnd-b', name: '研發B' },
+};
+
 describe('SafetyReportsService', () => {
   let service: SafetyReportsService;
   let prismaEvent: { findUnique: jest.Mock };
@@ -55,6 +75,7 @@ describe('SafetyReportsService', () => {
     findUnique: jest.Mock;
     findMany: jest.Mock;
   };
+  let prismaUser: { findMany: jest.Mock };
   let scopeService: { getScopedReporterUserIds: jest.Mock };
   let auditLog: jest.Mock;
 
@@ -74,6 +95,9 @@ describe('SafetyReportsService', () => {
       findUnique: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
     };
+    prismaUser = {
+      findMany: jest.fn().mockResolvedValue([]),
+    };
     scopeService = {
       getScopedReporterUserIds: jest.fn().mockResolvedValue([employeeUser.id]),
     };
@@ -84,7 +108,11 @@ describe('SafetyReportsService', () => {
         SafetyReportsService,
         {
           provide: PrismaService,
-          useValue: { event: prismaEvent, safetyReport: prismaReport },
+          useValue: {
+            event: prismaEvent,
+            safetyReport: prismaReport,
+            user: prismaUser,
+          },
         },
         { provide: ScopeService, useValue: scopeService },
         { provide: AuditService, useValue: { log: auditLog } },
@@ -150,13 +178,48 @@ describe('SafetyReportsService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('returns scoped team reports for MANAGER', async () => {
+    it('returns all direct reports including unreported members', async () => {
+      scopeService.getScopedReporterUserIds.mockResolvedValue([
+        mockManagerAUser.id,
+        mockManagerBUser.id,
+      ]);
+      prismaUser.findMany.mockResolvedValue([mockManagerAUser, mockManagerBUser]);
+      // only mgr-a has reported
+      prismaReport.findMany.mockResolvedValue([
+        {
+          id: 'report-1',
+          userId: mockManagerAUser.id,
+          eventId: mockActiveEvent.id,
+          status: SafetyStatus.SAFE,
+          message: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
+
       const result = await service.listTeam(mockActiveEvent.id, managerUser);
 
-      expect(scopeService.getScopedReporterUserIds).toHaveBeenCalledWith(
-        managerUser,
-      );
-      expect(Array.isArray(result)).toBe(true);
+      expect(scopeService.getScopedReporterUserIds).toHaveBeenCalledWith(managerUser);
+      expect(result).toHaveLength(2);
+
+      const aRow = result.find((r) => r.user.id === mockManagerAUser.id);
+      const bRow = result.find((r) => r.user.id === mockManagerBUser.id);
+      expect(aRow?.status).toBe(SafetyStatus.SAFE);
+      expect(aRow?.id).toBe('report-1');
+      expect(bRow?.status).toBe('NO_RESPONSE');
+      expect(bRow?.id).toBeNull();
+    });
+
+    it('returns all direct reports as NO_RESPONSE when none have reported', async () => {
+      scopeService.getScopedReporterUserIds.mockResolvedValue([mockManagerAUser.id]);
+      prismaUser.findMany.mockResolvedValue([mockManagerAUser]);
+      prismaReport.findMany.mockResolvedValue([]);
+
+      const result = await service.listTeam(mockActiveEvent.id, managerUser);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].status).toBe('NO_RESPONSE');
+      expect(result[0].id).toBeNull();
     });
   });
 
@@ -185,6 +248,20 @@ describe('SafetyReportsService', () => {
 
       expect(result.scope).toBe('self');
       expect(result.total).toBe(1);
+    });
+
+    it('returns scope "direct_reports" for MANAGER', async () => {
+      scopeService.getScopedReporterUserIds.mockResolvedValue(['mgr-a-1', 'mgr-b-1']);
+      prismaReport.findMany.mockResolvedValue([
+        { userId: 'mgr-a-1', status: SafetyStatus.SAFE },
+      ]);
+
+      const result = await service.stats(mockActiveEvent.id, managerUser);
+
+      expect(result.scope).toBe('direct_reports');
+      expect(result.total).toBe(2);
+      expect(result.responded).toBe(1);
+      expect(result.no_response).toBe(1);
     });
 
     it('returns scope "company" for ADMIN', async () => {

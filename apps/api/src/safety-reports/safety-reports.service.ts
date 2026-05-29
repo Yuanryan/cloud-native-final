@@ -79,10 +79,30 @@ export class SafetyReportsService {
     }
     await this.getEventOrThrow(eventId);
     const scopedIds = await this.scope.getScopedReporterUserIds(actor);
-    return this.prisma.safetyReport.findMany({
-      where: { eventId, userId: { in: scopedIds } },
-      include: { user: { include: { department: true } } },
-      orderBy: { createdAt: 'desc' },
+
+    const [users, reports] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: scopedIds } },
+        include: { department: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.safetyReport.findMany({
+        where: { eventId, userId: { in: scopedIds } },
+      }),
+    ]);
+
+    const reportMap = new Map(reports.map((r) => [r.userId, r]));
+
+    return users.map((user) => {
+      const report = reportMap.get(user.id);
+      return {
+        id: report?.id ?? null,
+        status: report?.status ?? 'NO_RESPONSE',
+        message: report?.message ?? null,
+        createdAt: report?.createdAt ?? null,
+        updatedAt: report?.updatedAt ?? null,
+        user,
+      };
     });
   }
 
@@ -122,7 +142,7 @@ export class SafetyReportsService {
         actor.role === Role.ADMIN
           ? 'company'
           : actor.role === Role.MANAGER
-            ? 'department_and_reports'
+            ? 'direct_reports'
             : 'self',
       total,
       responded,
