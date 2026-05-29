@@ -73,12 +73,10 @@ export class SafetyReportsService {
     });
   }
 
-  async listTeam(eventId: string, actor: AuthUser) {
-    if (actor.role !== Role.MANAGER) {
-      throw new ForbiddenException();
+  private async listScopedReports(eventId: string, scopedIds: string[]) {
+    if (scopedIds.length === 0) {
+      return [];
     }
-    await this.getEventOrThrow(eventId);
-    const scopedIds = await this.scope.getScopedReporterUserIds(actor);
 
     const [users, reports] = await Promise.all([
       this.prisma.user.findMany({
@@ -106,16 +104,22 @@ export class SafetyReportsService {
     });
   }
 
+  async listTeam(eventId: string, actor: AuthUser) {
+    if (actor.role !== Role.MANAGER) {
+      throw new ForbiddenException();
+    }
+    await this.getEventOrThrow(eventId);
+    const scopedIds = await this.scope.getScopedReporterUserIds(actor);
+    return this.listScopedReports(eventId, scopedIds);
+  }
+
   async listAll(eventId: string, actor: AuthUser) {
     if (actor.role !== Role.ADMIN) {
       throw new ForbiddenException();
     }
     await this.getEventOrThrow(eventId);
-    return this.prisma.safetyReport.findMany({
-      where: { eventId },
-      include: { user: { include: { department: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const scopedIds = await this.scope.getScopedReporterUserIds(actor);
+    return this.listScopedReports(eventId, scopedIds);
   }
 
   async stats(eventId: string, actor: AuthUser) {

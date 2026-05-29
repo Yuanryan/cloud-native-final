@@ -87,7 +87,8 @@
     "messageLabel": "Message: ",
     "notReported": "Not yet reported.",
     "allReports": "All Reports",
-    "teamReports": "Team / Dept Reports"
+    "teamReports": "Team / Dept Reports",
+    "noTeamReports": "No direct report data available yet."
   },
   "report": {
     "title": "Safety Report",

@@ -87,7 +87,8 @@
     "messageLabel": "說明：",
     "notReported": "尚未回報。",
     "allReports": "全公司回報",
-    "teamReports": "轄下 / 部門回報"
+    "teamReports": "轄下 / 部門回報",
+    "noTeamReports": "目前沒有直屬下屬回報資料。"
   },
   "report": {
     "title": "安全回報",

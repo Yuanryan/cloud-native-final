@@ -117,13 +117,23 @@ export default function EventDetailPage() {
       (me?.role === "EMPLOYEE" || me?.role === "MANAGER"),
   });
 
-  const { data: teamReports } = useQuery({
+  const {
+    data: teamReports,
+    isLoading: teamReportsLoading,
+    isError: teamReportsError,
+    error: teamReportsErrorObj,
+  } = useQuery({
     queryKey: ["event", eventId, "reports", "team"],
     queryFn: () => apiFetch<ReportRow[]>(`/events/${eventId}/reports/team`),
     enabled: !!eventId && !!session && me?.role === "MANAGER",
   });
 
-  const { data: allReports } = useQuery({
+  const {
+    data: allReports,
+    isLoading: allReportsLoading,
+    isError: allReportsError,
+    error: allReportsErrorObj,
+  } = useQuery({
     queryKey: ["event", eventId, "reports", "all"],
     queryFn: () => apiFetch<ReportRow[]>(`/events/${eventId}/reports`),
     enabled: !!eventId && !!session && me?.role === "ADMIN",
@@ -141,6 +151,18 @@ export default function EventDetailPage() {
 
   const reports =
     me?.role === "ADMIN" ? allReports : me?.role === "MANAGER" ? teamReports : undefined;
+  const reportsLoading =
+    me?.role === "ADMIN" ? allReportsLoading : me?.role === "MANAGER" ? teamReportsLoading : false;
+  const reportsError =
+    me?.role === "ADMIN" ? allReportsError : me?.role === "MANAGER" ? teamReportsError : false;
+  const reportsErrorMessage =
+    me?.role === "ADMIN"
+      ? allReportsErrorObj
+      : me?.role === "MANAGER"
+        ? teamReportsErrorObj
+        : undefined;
+  const showReportsSection =
+    me?.role === "ADMIN" || me?.role === "MANAGER";
 
   return (
     <AppShell>
@@ -241,7 +263,7 @@ export default function EventDetailPage() {
           </Card>
         )}
 
-        {reports && me?.role !== "EMPLOYEE" && (
+        {showReportsSection && (
           <Card>
             <CardHeader>
               <CardTitle>
@@ -249,33 +271,45 @@ export default function EventDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{tc("name")}</TableHead>
-                    <TableHead>{tc("department")}</TableHead>
-                    <TableHead>{tc("status")}</TableHead>
-                    <TableHead>{tc("description")}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {reports.map((r) => (
-                    <TableRow key={r.user.id}>
-                      <TableCell>{r.user.name}</TableCell>
-                      <TableCell>{r.user.department.name}</TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          status={r.status}
-                          label={r.status === "NO_RESPONSE" ? ts("noResponse") : undefined}
-                        />
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate text-muted-foreground">
-                        {r.message ?? "—"}
-                      </TableCell>
+              {reportsLoading ? (
+                <p className="text-sm text-muted-foreground">{tc("loading")}</p>
+              ) : reportsError ? (
+                <p className="text-sm text-destructive">
+                  {reportsErrorMessage instanceof Error
+                    ? reportsErrorMessage.message
+                    : tc("operationFailed")}
+                </p>
+              ) : !reports?.length ? (
+                <p className="text-sm text-muted-foreground">{t("noTeamReports")}</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{tc("name")}</TableHead>
+                      <TableHead>{tc("department")}</TableHead>
+                      <TableHead>{tc("status")}</TableHead>
+                      <TableHead>{tc("description")}</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {reports.map((r) => (
+                      <TableRow key={r.user.id}>
+                        <TableCell>{r.user.name}</TableCell>
+                        <TableCell>{r.user.department?.name ?? "—"}</TableCell>
+                        <TableCell>
+                          <StatusBadge
+                            status={r.status}
+                            label={r.status === "NO_RESPONSE" ? ts("noResponse") : undefined}
+                          />
+                        </TableCell>
+                        <TableCell className="max-w-xs truncate text-muted-foreground">
+                          {r.message ?? "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         )}

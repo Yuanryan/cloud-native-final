@@ -230,13 +230,40 @@ describe('SafetyReportsService', () => {
       ).rejects.toThrow(ForbiddenException);
     });
 
-    it('returns all reports for ADMIN', async () => {
-      prismaReport.findMany.mockResolvedValue([{ id: 'r1' }]);
+    it('returns all scoped users including unreported for ADMIN', async () => {
+      scopeService.getScopedReporterUserIds.mockResolvedValue([
+        employeeUser.id,
+        'emp-2',
+      ]);
+      prismaUser.findMany.mockResolvedValue([
+        { ...employeeUser, department: { id: 'dept-1', name: 'Eng' } },
+        {
+          id: 'emp-2',
+          email: 'emp2@demo.com',
+          name: '員工乙',
+          role: Role.EMPLOYEE,
+          departmentId: 'dept-1',
+          managerId: null,
+          department: { id: 'dept-1', name: 'Eng' },
+        },
+      ]);
+      prismaReport.findMany.mockResolvedValue([
+        {
+          id: 'report-1',
+          userId: employeeUser.id,
+          eventId: mockActiveEvent.id,
+          status: SafetyStatus.SAFE,
+          message: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
 
       const result = await service.listAll(mockActiveEvent.id, adminUser);
 
-      expect(Array.isArray(result)).toBe(true);
-      expect(result).toHaveLength(1);
+      expect(scopeService.getScopedReporterUserIds).toHaveBeenCalledWith(adminUser);
+      expect(result).toHaveLength(2);
+      expect(result[1].status).toBe('NO_RESPONSE');
     });
   });
 
