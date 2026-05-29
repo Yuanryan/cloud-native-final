@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Breadcrumb } from "@/components/breadcrumb";
 import { apiFetch, getSession } from "@/lib/api";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,15 @@ type AuditResponse = {
 };
 
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
+const ACTION_OPTIONS = [
+  "CREATE",
+  "UPDATE",
+  "DELETE",
+  "LOGIN",
+  "LOGIN_FAILED",
+  "REPORT_SUBMIT",
+] as const;
+const ANY_VALUE = "__any__";
 
 export default function AdminAuditPage() {
   const router = useRouter();
@@ -52,6 +62,10 @@ export default function AdminAuditPage() {
   const [mounted, setMounted] = useState(false);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(50);
+  const [actionFilter, setActionFilter] = useState<string>("");
+  const [resourceFilter, setResourceFilter] = useState<string>("");
+  const [actorInput, setActorInput] = useState<string>("");
+  const [actorFilter, setActorFilter] = useState<string>("");
 
   useEffect(() => {
     setMounted(true);
@@ -60,12 +74,38 @@ export default function AdminAuditPage() {
     else if (s.user.role !== "ADMIN") router.replace("/dashboard");
   }, [router]);
 
+  // Debounce the actor email input so we don't fire a query on every keystroke.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setActorFilter(actorInput.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [actorInput]);
+
+  const queryString = useMemo(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+    if (actionFilter) params.set("action", actionFilter);
+    if (resourceFilter) params.set("resource", resourceFilter);
+    if (actorFilter) params.set("actorEmail", actorFilter);
+    return params.toString();
+  }, [page, limit, actionFilter, resourceFilter, actorFilter]);
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["audit-logs", page, limit],
-    queryFn: () =>
-      apiFetch<AuditResponse>(`/audit-logs?page=${page}&limit=${limit}`),
+    queryKey: ["audit-logs", queryString],
+    queryFn: () => apiFetch<AuditResponse>(`/audit-logs?${queryString}`),
     enabled: mounted && getSession()?.user.role === "ADMIN",
     placeholderData: keepPreviousData,
+  });
+
+  const { data: resources } = useQuery({
+    queryKey: ["audit-logs", "resources"],
+    queryFn: () => apiFetch<string[]>("/audit-logs/resources"),
+    enabled: mounted && getSession()?.user.role === "ADMIN",
+    staleTime: 60_000,
   });
 
   const totalPages = useMemo(
@@ -76,6 +116,15 @@ export default function AdminAuditPage() {
   const pageEnd = data ? Math.min(data.page * data.limit, data.total) : 0;
   const canPrev = page > 1;
   const canNext = data ? page < totalPages : false;
+  const hasFilters = !!(actionFilter || resourceFilter || actorFilter);
+
+  const clearFilters = () => {
+    setActionFilter("");
+    setResourceFilter("");
+    setActorInput("");
+    setActorFilter("");
+    setPage(1);
+  };
 
   return (
     <AppShell>
@@ -85,6 +134,81 @@ export default function AdminAuditPage() {
           <CardTitle>{t("title")}</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 grid gap-3 sm:grid-cols-4">
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                {t("filterAction")}
+              </label>
+              <Select
+                value={actionFilter || ANY_VALUE}
+                onValueChange={(v) => {
+                  setActionFilter(!v || v === ANY_VALUE ? "" : v);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder={t("any")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ANY_VALUE}>{t("any")}</SelectItem>
+                  {ACTION_OPTIONS.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                {t("filterResource")}
+              </label>
+              <Select
+                value={resourceFilter || ANY_VALUE}
+                onValueChange={(v) => {
+                  setResourceFilter(!v || v === ANY_VALUE ? "" : v);
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder={t("any")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ANY_VALUE}>{t("any")}</SelectItem>
+                  {(resources ?? []).map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-muted-foreground">
+                {t("filterActor")}
+              </label>
+              <Input
+                value={actorInput}
+                onChange={(e) => setActorInput(e.target.value)}
+                placeholder={t("actorPlaceholder")}
+                className="h-8"
+              />
+            </div>
+            <div className="flex items-end">
+              {hasFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-8"
+                >
+                  <X className="mr-1 h-3.5 w-3.5" />
+                  {t("clearFilters")}
+                </Button>
+              )}
+            </div>
+          </div>
+
           {isLoading && (
             <p className="text-sm text-muted-foreground">{tc("loading")}</p>
           )}
@@ -113,8 +237,10 @@ export default function AdminAuditPage() {
                   <Select
                     value={String(limit)}
                     onValueChange={(v) => {
-                      setLimit(Number(v));
-                      setPage(1);
+                      if (v) {
+                        setLimit(Number(v));
+                        setPage(1);
+                      }
                     }}
                   >
                     <SelectTrigger id="pageSize" className="h-7 w-[80px]">

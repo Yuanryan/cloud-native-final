@@ -46,7 +46,7 @@ describe('AuditLogsService', () => {
 
   describe('findPage()', () => {
     it('returns items, total, page, and limit', async () => {
-      const result = await service.findPage(1, 50);
+      const result = await service.findPage({ page: 1, limit: 50 });
 
       expect(result).toMatchObject({
         items: [mockItem],
@@ -64,16 +64,36 @@ describe('AuditLogsService', () => {
     });
 
     it('clamps limit to 100 when higher value is provided', async () => {
-      const result = await service.findPage(1, 999);
+      const result = await service.findPage({ page: 1, limit: 999 });
 
       expect(result.limit).toBe(100);
     });
 
     it('calculates correct skip for page 2', async () => {
-      await service.findPage(2, 50);
+      await service.findPage({ page: 2, limit: 50 });
 
       expect(prismaAuditLogFindMany).toHaveBeenCalledWith(
         expect.objectContaining({ skip: 50, take: 50 }),
+      );
+    });
+
+    it('passes action filter into prisma where clause', async () => {
+      await service.findPage({ action: 'LOGIN' });
+
+      expect(prismaAuditLogFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { action: 'LOGIN' } }),
+      );
+    });
+
+    it('passes actorEmail as case-insensitive contains', async () => {
+      await service.findPage({ actorEmail: 'admin' });
+
+      expect(prismaAuditLogFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            actor: { email: { contains: 'admin', mode: 'insensitive' } },
+          },
+        }),
       );
     });
   });
