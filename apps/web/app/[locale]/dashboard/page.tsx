@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { apiFetch, getSession } from "@/lib/api";
 import {
@@ -14,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 type Me = {
@@ -22,7 +20,7 @@ type Me = {
   email: string;
   name: string;
   role: string;
-  department: { id: string; name: string };
+  department: { id: string; name: string } | null;
 };
 
 type EventRow = {
@@ -54,46 +52,41 @@ function EventStatCard({ event }: { event: EventRow }) {
   });
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{event.title}</CardTitle>
-          <Badge variant="default">ACTIVE</Badge>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {stats ? (
-          <div className="grid grid-cols-3 gap-2 text-center text-sm">
-            <div>
-              <p className="text-2xl font-bold">{stats.total}</p>
-              <p className="text-muted-foreground">{ts("total")}</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-green-600">
-                {stats.responded}
-              </p>
-              <p className="text-muted-foreground">{ts("responded")}</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-destructive">
-                {stats.no_response}
-              </p>
-              <p className="text-muted-foreground">{ts("noResponse")}</p>
-            </div>
+    <Link href={`/events/${event.id}`}>
+      <Card className="h-full cursor-pointer transition-colors hover:bg-muted/50">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">{event.title}</CardTitle>
+            <Badge variant="default">ACTIVE</Badge>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">{tc("loading")}</p>
-        )}
-        <div className="mt-3">
-          <Link
-            href={`/events/${event.id}`}
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "w-full")}
-          >
-            {td("viewTeamReports")}
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
+        </CardHeader>
+        <CardContent>
+          {stats ? (
+            <div className="grid grid-cols-3 gap-2 text-center text-sm">
+              <div>
+                <p className="text-2xl font-bold">{stats.total}</p>
+                <p className="text-muted-foreground">{ts("total")}</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-green-600">
+                  {stats.responded}
+                </p>
+                <p className="text-muted-foreground">{ts("responded")}</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-destructive">
+                  {stats.no_response}
+                </p>
+                <p className="text-muted-foreground">{ts("noResponse")}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">{tc("loading")}</p>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">{td("tapToView")}</p>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }
 
@@ -143,21 +136,29 @@ export default function DashboardPage() {
         </div>
 
         {me && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Link href={eventsListHref}>
-              <Card className="cursor-pointer transition-colors hover:bg-muted/50">
-                <CardHeader className="pb-2">
-                  <CardDescription>{t("activeEvents")}</CardDescription>
-                  <CardTitle
-                    className="text-3xl"
-                    style={{ color: activeCount > 0 ? "var(--info)" : undefined }}
-                  >
-                    {activeCount}
-                  </CardTitle>
-                  <CardDescription className="text-xs">{t("tapToView")}</CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
+          <div
+            className={
+              me.role === "EMPLOYEE"
+                ? "grid grid-cols-2 gap-4 sm:grid-cols-3"
+                : "grid max-w-sm grid-cols-1 gap-4"
+            }
+          >
+            {me.role === "EMPLOYEE" && (
+              <Link href={eventsListHref}>
+                <Card className="cursor-pointer transition-colors hover:bg-muted/50">
+                  <CardHeader className="pb-2">
+                    <CardDescription>{t("activeEvents")}</CardDescription>
+                    <CardTitle
+                      className="text-3xl"
+                      style={{ color: activeCount > 0 ? "var(--info)" : undefined }}
+                    >
+                      {activeCount}
+                    </CardTitle>
+                    <CardDescription className="text-xs">{t("tapToView")}</CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+            )}
             <Link href="/notifications">
               <Card className="cursor-pointer transition-colors hover:bg-muted/50">
                 <CardHeader className="pb-2">
@@ -180,31 +181,10 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle>{t("greeting", { name: me.name })}</CardTitle>
               <CardDescription>
-                {me.email} · {me.role} · {me.department.name}
+                {me.email} · {me.role}
+                {me.department ? ` · ${me.department.name}` : ` · ${t("systemAdmin")}`}
               </CardDescription>
             </CardHeader>
-            {me.role === "ADMIN" && (
-              <CardContent className="flex flex-wrap gap-2">
-                <Link
-                  href="/admin/events/new"
-                  className={cn(buttonVariants())}
-                >
-                  {t("createEvent")}
-                </Link>
-                <Link
-                  href="/admin/users"
-                  className={cn(buttonVariants({ variant: "outline" }))}
-                >
-                  {t("userManagement")}
-                </Link>
-                <Link
-                  href="/admin/audit"
-                  className={cn(buttonVariants({ variant: "outline" }))}
-                >
-                  {t("auditLog")}
-                </Link>
-              </CardContent>
-            )}
           </Card>
         )}
 
@@ -213,6 +193,11 @@ export default function DashboardPage() {
             <div>
               <h2 className="text-xl font-semibold tracking-tight">
                 {t("myTeamEvents")}
+                {activeCount > 0 && (
+                  <span className="ml-2 text-base font-normal text-muted-foreground">
+                    ({activeCount})
+                  </span>
+                )}
               </h2>
               <p className="text-sm text-muted-foreground">
                 {t("teamEventsSubtitle")}

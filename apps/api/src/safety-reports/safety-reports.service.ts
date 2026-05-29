@@ -73,17 +73,44 @@ export class SafetyReportsService {
     });
   }
 
+  private async listScopedReports(eventId: string, scopedIds: string[]) {
+    if (scopedIds.length === 0) {
+      return [];
+    }
+
+    const [users, reports] = await Promise.all([
+      this.prisma.user.findMany({
+        where: { id: { in: scopedIds } },
+        include: { department: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.safetyReport.findMany({
+        where: { eventId, userId: { in: scopedIds } },
+      }),
+    ]);
+
+    const reportMap = new Map(reports.map((r) => [r.userId, r]));
+
+    return users.map((user) => {
+      const report = reportMap.get(user.id);
+      return {
+        id: report?.id ?? null,
+        status: report?.status ?? 'NO_RESPONSE',
+        message: report?.message ?? null,
+        createdAt: report?.createdAt ?? null,
+        updatedAt: report?.updatedAt ?? null,
+        user,
+      };
+    });
+  }
+
   async listTeam(eventId: string, actor: AuthUser) {
     if (actor.role !== Role.MANAGER) {
       throw new ForbiddenException();
     }
     await this.getEventOrThrow(eventId);
     const scopedIds = await this.scope.getScopedReporterUserIds(actor);
-    return this.prisma.safetyReport.findMany({
-      where: { eventId, userId: { in: scopedIds } },
-      include: { user: { include: { department: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.listScopedReports(eventId, scopedIds);
   }
 
   async listAll(eventId: string, actor: AuthUser) {
@@ -91,11 +118,8 @@ export class SafetyReportsService {
       throw new ForbiddenException();
     }
     await this.getEventOrThrow(eventId);
-    return this.prisma.safetyReport.findMany({
-      where: { eventId },
-      include: { user: { include: { department: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const scopedIds = await this.scope.getScopedReporterUserIds(actor);
+    return this.listScopedReports(eventId, scopedIds);
   }
 
   async stats(eventId: string, actor: AuthUser) {
@@ -122,7 +146,7 @@ export class SafetyReportsService {
         actor.role === Role.ADMIN
           ? 'company'
           : actor.role === Role.MANAGER
-            ? 'department_and_reports'
+            ? 'direct_reports'
             : 'self',
       total,
       responded,

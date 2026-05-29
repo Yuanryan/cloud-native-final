@@ -30,9 +30,14 @@ export class SafetyReportsController {
   ) {}
 
   @HttpCode(HttpStatus.ACCEPTED)
-  // NOTE: per-user rate limit temporarily relaxed for k6 burst demos.
-  // Production should restore: @Throttle({ global: { ttl: 60000, limit: 10 } })
-  @Throttle({ global: { ttl: 60000, limit: 10000 } })
+  // Limit is env-driven so production can tighten (e.g. 10/60s) while demos
+  // and k6 burst tests can loosen via SAFETY_REPORT_RATE_LIMIT.
+  @Throttle({
+    global: {
+      ttl: 60000,
+      limit: Number(process.env.SAFETY_REPORT_RATE_LIMIT ?? 10),
+    },
+  })
   @Post('reports')
   @Roles(Role.EMPLOYEE, Role.MANAGER)
   async submit(

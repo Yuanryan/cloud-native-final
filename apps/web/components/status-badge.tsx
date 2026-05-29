@@ -2,6 +2,7 @@ import { CSSProperties } from "react";
 
 type StatusBadgeProps = {
   status: string;
+  label?: string;
   className?: string;
 };
 
@@ -32,6 +33,12 @@ function getStatusStyle(status: string): CSSProperties {
         color: "var(--destructive)",
         border: "1px solid var(--destructive)",
       };
+    case "NO_RESPONSE":
+      return {
+        backgroundColor: "var(--warning-bg)",
+        color: "var(--warning)",
+        border: "1px solid var(--warning)",
+      };
     default:
       return {
         backgroundColor: "var(--muted)",
@@ -41,13 +48,13 @@ function getStatusStyle(status: string): CSSProperties {
   }
 }
 
-export function StatusBadge({ status, className }: StatusBadgeProps) {
+export function StatusBadge({ status, label, className }: StatusBadgeProps) {
   return (
     <span
       className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${className ?? ""}`}
       style={getStatusStyle(status)}
     >
-      {status}
+      {label ?? status}
     </span>
   );
 }

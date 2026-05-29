@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -19,6 +20,19 @@ const mockUser = {
   createdAt: new Date(),
   updatedAt: new Date(),
   department: { id: 'dept-1', name: 'Engineering' },
+};
+
+const mockAdmin = {
+  id: 'admin-1',
+  email: 'admin@demo.com',
+  name: '系統管理員',
+  role: Role.ADMIN,
+  departmentId: null,
+  managerId: null,
+  passwordHash: 'hashed',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  department: null,
 };
 
 describe('UsersService', () => {
@@ -100,6 +114,41 @@ describe('UsersService', () => {
       expect(prismaUser.create).toHaveBeenCalled();
       expect(result).not.toHaveProperty('passwordHash');
     });
+
+    it('throws BadRequestException when non-ADMIN is created without departmentId', async () => {
+      prismaUser.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.create({
+          ...createDto,
+          role: Role.MANAGER,
+          departmentId: undefined,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('creates ADMIN without departmentId and forces departmentId=null', async () => {
+      prismaUser.findUnique.mockResolvedValue(null);
+      prismaUser.create.mockResolvedValue(mockAdmin);
+
+      const result = await service.create({
+        email: 'admin2@demo.com',
+        password: 'Password123!',
+        name: 'Admin',
+        role: Role.ADMIN,
+        departmentId: 'dept-1', // should be ignored/cleared
+      });
+
+      expect(prismaUser.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            departmentId: undefined, // null coerced to undefined for Prisma
+            managerId: undefined,
+          }),
+        }),
+      );
+      expect(result).not.toHaveProperty('passwordHash');
+    });
   });
 
   describe('update()', () => {
@@ -135,6 +184,47 @@ describe('UsersService', () => {
       await service.update('user-1', { email: mockUser.email });
 
       expect(prismaUser.findUnique).toHaveBeenCalledTimes(1);
+    });
+
+    it('forces departmentId=null and managerId=null when role is updated to ADMIN', async () => {
+      prismaUser.update.mockResolvedValue(mockAdmin);
+
+      await service.update('user-1', {
+        role: Role.ADMIN,
+        departmentId: 'dept-1',
+        managerId: 'mgr-1',
+      });
+
+      expect(prismaUser.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            departmentId: null,
+            managerId: null,
+          }),
+        }),
+      );
+    });
+
+    it('forces departmentId=null when existing user is ADMIN and role not changed', async () => {
+      prismaUser.findUnique.mockResolvedValue(mockAdmin);
+      prismaUser.update.mockResolvedValue(mockAdmin);
+
+      await service.update('admin-1', { name: 'New Admin Name' });
+
+      expect(prismaUser.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            departmentId: null,
+            managerId: null,
+          }),
+        }),
+      );
+    });
+
+    it('throws BadRequestException when explicitly setting departmentId to null for non-ADMIN', async () => {
+      await expect(
+        service.update('user-1', { departmentId: null }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
