@@ -11,6 +11,10 @@ concurrency:
   group: deploy-gke-${{ github.event.workflow_run.head_branch || github.ref }}
   cancel-in-progress: false
 
+# Least privilege: deploy only reads source to check out; GCP auth uses GCP_SA_KEY, not GITHUB_TOKEN.
+permissions:
+  contents: read
+
 env:
   GCP_REGION: ${{ secrets.GCP_REGION || 'asia-northeast1' }}
   AR_REPO: ${{ secrets.GCP_AR_REPO || 'safety-api' }}

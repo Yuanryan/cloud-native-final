@@ -25,7 +25,7 @@ import { parseTokens, tokenForVu, bearerHeader } from './lib/accounts.js';
 const BASE_URL = __ENV.BASE_URL || 'http://localhost';
 const EVENT_ID = __ENV.EVENT_ID || '';
 const TOKENS_FILE = __ENV.TOKENS_FILE || '/scripts/load-test-tokens.json';
-const PEAK_VUS = parseInt(__ENV.PEAK_VUS || '6767', 10);
+const PEAK_VUS = Number.parseInt(__ENV.PEAK_VUS || '6767', 10);
 
 // open() must be called in the init stage (global scope), not inside setup()
 const _rawTokens = open(TOKENS_FILE);
@@ -64,7 +64,7 @@ export function setup() {
   return { tokens };
 }
 
-export default function (data) {
+export default function safetyReportBurst(data) {
   // Each VU submits exactly once (models "6767 employees each report once").
   // Without this guard, ramping-vus loops VUs and a shared token would exceed
   // any per-user rate limit.

@@ -6,7 +6,7 @@ metadata:
   labels:
     app: safety-api
 spec:
-  # Headless: DNS lookup returns one A record per Pod IP, enabling the
+  # Headless: node:dns lookup returns one A record per Pod IP, enabling the
   # aggregator endpoint to fan out to all sibling Pods.
   clusterIP: None
   selector:

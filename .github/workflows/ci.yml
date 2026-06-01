@@ -9,6 +9,10 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: CI runs untrusted fork PR code, so it gets read-only token access.
+permissions:
+  contents: read
+
 jobs:
   quality:
     name: Lint, test & build

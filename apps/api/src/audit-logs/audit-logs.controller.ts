@@ -18,8 +18,8 @@ export class AuditLogsController {
     @Query('resource') resource?: string,
     @Query('actorEmail') actorEmail?: string,
   ) {
-    const p = page ? parseInt(page, 10) : 1;
-    const l = limit ? parseInt(limit, 10) : 50;
+    const p = page ? Number.parseInt(page, 10) : 1;
+    const l = limit ? Number.parseInt(limit, 10) : 50;
     const validatedAction =
       action && VALID_ACTIONS.has(action as AuditAction)
         ? (action as AuditAction)

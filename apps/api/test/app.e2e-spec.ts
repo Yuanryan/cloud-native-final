@@ -4,7 +4,7 @@ import {
   ValidationPipe,
   RequestMethod,
 } from '@nestjs/common';
-import * as path from 'path';
+import * as path from 'node:path';
 import * as dotenv from 'dotenv';
 import * as request from 'supertest';
 import * as bcrypt from 'bcrypt';

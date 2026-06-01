@@ -1,28 +1,4 @@
 /**
- * k6 shared helper — token pool management
- *
- * k6 restricts `open()` to the init stage (global scope).
- * Call `open()` at the top level of your script, then pass the raw
- * string to `parseTokens()` — either in setup() or at global scope.
- *
- * Usage in k6 scripts:
- *   import { parseTokens, tokenForVu, bearerHeader } from './lib/accounts.js';
- *
- *   // Init stage — global scope
- *   const _rawTokens = open(__ENV.TOKENS_FILE || '/scripts/load-test-tokens.json');
- *
- *   export function setup() {
- *     const tokens = parseTokens(_rawTokens);
- *     return { tokens };
- *   }
- *
- *   export default function (data) {
- *     const account = tokenForVu(data.tokens, __VU);
- *     ...
- *   }
- */
-
-/**
  * Parse a JSON string (previously read with open()) into a token array.
  * Returns array of { email, role, token }.
  *

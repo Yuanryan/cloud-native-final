@@ -20,8 +20,8 @@ export function getJwtExpiresSec(config: ConfigService): number {
     typeof raw === 'number'
       ? raw
       : typeof raw === 'string'
-        ? parseInt(raw.trim(), 10)
-        : NaN;
+        ? Number.parseInt(raw.trim(), 10)
+        : Number.NaN;
   if (!Number.isFinite(n) || n < 60) {
     return 28800;
   }

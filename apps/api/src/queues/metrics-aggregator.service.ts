@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { promises as dnsP } from 'dns';
+import { promises as dnsP } from 'node:dns';
 import { MetricsService, MetricsSummary } from '../metrics/metrics.service';
 
 export type AggregatedMetricsSummary = MetricsSummary & {
@@ -53,14 +53,14 @@ export class MetricsAggregatorService {
       podIPs = await dnsP.resolve4(this.discoveryHost);
     } catch (err) {
       this.logger.warn(
-        `DNS lookup failed for ${this.discoveryHost}: ${(err as Error).message}`,
+        `node:dns lookup failed for ${this.discoveryHost}: ${(err as Error).message}`,
       );
       return {
         ...local,
         pods: 1,
         podNames: [local.pod],
         aggregated: false,
-        aggregationNote: `DNS discovery failed (${(err as Error).message})`,
+        aggregationNote: `node:dns discovery failed (${(err as Error).message})`,
       };
     }
 

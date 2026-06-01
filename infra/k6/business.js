@@ -98,7 +98,7 @@ export function setup() {
   return { adminToken, managerToken, employeeTokens };
 }
 
-export default function (data) {
+export default function businessScenario(data) {
   group("health_check", function () {
     const res = http.get(`${BASE}/health`, { tags: { name: "health", load: "read" } });
     check(res, { "health 200": (r) => r.status === 200 });
