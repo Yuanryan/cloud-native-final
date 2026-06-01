@@ -65,59 +65,13 @@ export class MetricsService {
   // registry that powers /metrics — values reflect this Pod only, so under HPA
   // numbers round-robin (acceptable for a single-pane demo view).
   async summary(): Promise<MetricsSummary> {
-    const counterSnapshot = await this.httpRequestsTotal.get();
-    const histogramSnapshot = await this.httpRequestDuration.get();
-
-    let total = 0;
-    const byStatus: Record<string, number> = {
-      '2xx': 0,
-      '3xx': 0,
-      '4xx': 0,
-      '5xx': 0,
-    };
-    for (const v of counterSnapshot.values) {
-      total += v.value;
-      const code = String(v.labels.status_code ?? '');
-      const bucket = `${code[0] ?? '?'}xx`;
-      if (bucket in byStatus) byStatus[bucket] += v.value;
-    }
-
-    let durationSum = 0;
-    let durationCount = 0;
-    const bucketCounts = new Map<number, number>();
-    for (const v of histogramSnapshot.values) {
-      const name = String(v.metricName ?? '');
-      if (name.endsWith('_sum')) {
-        durationSum += v.value;
-      } else if (name.endsWith('_count')) {
-        durationCount += v.value;
-      } else {
-        const labels = v.labels as Record<string, string | number | undefined>;
-        if (labels.le !== undefined) {
-          const le = Number(labels.le);
-          if (!Number.isNaN(le)) {
-            bucketCounts.set(le, (bucketCounts.get(le) ?? 0) + v.value);
-          }
-        }
-      }
-    }
-
-    let p95 = 0;
-    if (durationCount > 0 && bucketCounts.size > 0) {
-      const target = durationCount * 0.95;
-      const sortedBuckets = [...bucketCounts.entries()].sort(
-        (a, b) => a[0] - b[0],
-      );
-      for (const [le, cumulative] of sortedBuckets) {
-        if (cumulative >= target) {
-          p95 = le;
-          break;
-        }
-      }
-      if (p95 === 0) {
-        p95 = sortedBuckets[sortedBuckets.length - 1][0];
-      }
-    }
+    const { total, byStatus } = this.aggregateRequests(
+      await this.httpRequestsTotal.get(),
+    );
+    const { sum, count, bucketCounts } = this.aggregateDuration(
+      await this.httpRequestDuration.get(),
+    );
+    const p95 = this.computeP95(count, bucketCounts);
 
     return {
       // HOSTNAME is set by K8s to the Pod name; falls back to OS hostname locally.
@@ -125,11 +79,74 @@ export class MetricsService {
       uptime_seconds: Math.floor((Date.now() - this.bootedAt) / 1000),
       requests: { total, by_status: byStatus },
       latency_seconds: {
-        avg: durationCount > 0 ? durationSum / durationCount : 0,
+        avg: count > 0 ? sum / count : 0,
         p95,
       },
       memory_mb:
         Math.round((process.memoryUsage().heapUsed / 1024 / 1024) * 10) / 10,
     };
+  }
+
+  private aggregateRequests(
+    snapshot: Awaited<ReturnType<MetricsService['httpRequestsTotal']['get']>>,
+  ): { total: number; byStatus: Record<string, number> } {
+    let total = 0;
+    const byStatus: Record<string, number> = {
+      '2xx': 0,
+      '3xx': 0,
+      '4xx': 0,
+      '5xx': 0,
+    };
+    for (const v of snapshot.values) {
+      total += v.value;
+      const code = String(v.labels.status_code ?? '');
+      const bucket = `${code[0] ?? '?'}xx`;
+      if (bucket in byStatus) byStatus[bucket] += v.value;
+    }
+    return { total, byStatus };
+  }
+
+  private aggregateDuration(
+    snapshot: Awaited<ReturnType<MetricsService['httpRequestDuration']['get']>>,
+  ): { sum: number; count: number; bucketCounts: Map<number, number> } {
+    let sum = 0;
+    let count = 0;
+    const bucketCounts = new Map<number, number>();
+    for (const v of snapshot.values) {
+      const name = String(v.metricName ?? '');
+      if (name.endsWith('_sum')) {
+        sum += v.value;
+      } else if (name.endsWith('_count')) {
+        count += v.value;
+      } else {
+        this.accumulateBucket(v, bucketCounts);
+      }
+    }
+    return { sum, count, bucketCounts };
+  }
+
+  private accumulateBucket(
+    v: Awaited<
+      ReturnType<MetricsService['httpRequestDuration']['get']>
+    >['values'][number],
+    bucketCounts: Map<number, number>,
+  ): void {
+    const labels = v.labels as Record<string, string | number | undefined>;
+    if (labels.le === undefined) return;
+    const le = Number(labels.le);
+    if (Number.isNaN(le)) return;
+    bucketCounts.set(le, (bucketCounts.get(le) ?? 0) + v.value);
+  }
+
+  private computeP95(count: number, bucketCounts: Map<number, number>): number {
+    if (count === 0 || bucketCounts.size === 0) return 0;
+    const target = count * 0.95;
+    const sortedBuckets = [...bucketCounts.entries()].sort(
+      (a, b) => a[0] - b[0],
+    );
+    for (const [le, cumulative] of sortedBuckets) {
+      if (cumulative >= target) return le;
+    }
+    return sortedBuckets[sortedBuckets.length - 1][0];
   }
 }

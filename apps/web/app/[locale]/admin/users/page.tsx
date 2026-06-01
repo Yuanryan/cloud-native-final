@@ -39,6 +39,62 @@ type FormMode = "none" | "create" | "edit";
 
 const ROLES = ["EMPLOYEE", "MANAGER", "ADMIN"] as const;
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type ValidationValues = {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  departmentId: string;
+  isAdminRole: boolean;
+};
+
+type FieldErrors = {
+  name: string | null;
+  email: string | null;
+  password: string | null;
+  role: string | null;
+  departmentId: string | null;
+};
+
+function validateEmail(
+  mode: "create" | "edit",
+  email: string,
+  t: (key: string) => string
+): string | null {
+  if (mode !== "create") return null;
+  if (email.trim().length === 0) return t("errorEmailRequired");
+  if (!EMAIL_REGEX.test(email)) return t("errorEmailFormat");
+  return null;
+}
+
+function validatePassword(
+  mode: "create" | "edit",
+  password: string,
+  t: (key: string) => string
+): string | null {
+  if (mode !== "create") return null;
+  if (password.length === 0) return t("errorPasswordRequired");
+  if (password.length < 6) return t("errorPasswordLength");
+  return null;
+}
+
+function validateUserForm(
+  mode: "create" | "edit",
+  v: ValidationValues,
+  t: (key: string) => string
+): FieldErrors {
+  return {
+    name: v.name.trim().length === 0 ? t("errorName") : null,
+    email: validateEmail(mode, v.email, t),
+    password: validatePassword(mode, v.password, t),
+    role: v.role === "" ? t("errorRole") : null,
+    departmentId:
+      !v.isAdminRole && v.departmentId === "" ? t("errorDept") : null,
+  };
+}
+
 function UserForm({
   mode,
   initial,
@@ -104,26 +160,11 @@ function UserForm({
     },
   });
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  const errors = {
-    name: name.trim().length === 0 ? t("errorName") : null,
-    email:
-      mode === "create"
-        ? email.trim().length === 0
-          ? t("errorEmailRequired")
-          : !emailRegex.test(email)
-          ? t("errorEmailFormat")
-          : null
-        : null,
-    password:
-      mode === "create" && password.length > 0 && password.length < 6
-        ? t("errorPasswordLength")
-        : mode === "create" && password.length === 0
-        ? t("errorPasswordRequired")
-        : null,
-    role: role === "" ? t("errorRole") : null,
-    departmentId: !isAdminRole && departmentId === "" ? t("errorDept") : null,
-  };
+  const errors = validateUserForm(
+    mode,
+    { name, email, password, role, departmentId, isAdminRole },
+    t
+  );
   const isValid = Object.values(errors).every((e) => e === null);
 
   return (

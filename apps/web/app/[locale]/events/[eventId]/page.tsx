@@ -72,12 +72,210 @@ function StatCard({
   );
 }
 
+// Resolves the role-appropriate report query (admin sees all, manager sees team)
+// into a single set of values, so the page component stays free of role branching.
+function useEventReports(
+  eventId: string,
+  enabled: boolean,
+  role: string | undefined
+) {
+  const teamReports = useQuery({
+    queryKey: ["event", eventId, "reports", "team"],
+    queryFn: () => apiFetch<ReportRow[]>(`/events/${eventId}/reports/team`),
+    enabled: enabled && role === "MANAGER",
+  });
+
+  const allReports = useQuery({
+    queryKey: ["event", eventId, "reports", "all"],
+    queryFn: () => apiFetch<ReportRow[]>(`/events/${eventId}/reports`),
+    enabled: enabled && role === "ADMIN",
+  });
+
+  const active =
+    role === "ADMIN" ? allReports : role === "MANAGER" ? teamReports : null;
+
+  return {
+    reports: active?.data,
+    reportsLoading: active?.isLoading ?? false,
+    reportsError: active?.isError ?? false,
+    reportsErrorObj: active?.error,
+    showReportsSection: role === "ADMIN" || role === "MANAGER",
+  };
+}
+
+function StatsGrid({ stats }: { stats: Stats }) {
+  const ts = useTranslations("stats");
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <StatCard label={ts("total")} value={stats.total} />
+      <StatCard label={ts("responded")} value={stats.responded} color="var(--info)" />
+      <StatCard label={ts("safe")} value={stats.safe} color="var(--success)" />
+      <StatCard label={ts("needHelp")} value={stats.need_help} color="var(--destructive)" />
+      <StatCard label={ts("noResponse")} value={stats.no_response} color="var(--warning)" />
+    </div>
+  );
+}
+
+function ReminderCard({ eventId }: { eventId: string }) {
+  const t = useTranslations("eventDetail");
+  const tc = useTranslations("common");
+  const qc = useQueryClient();
+  const reminder = useMutation({
+    mutationFn: () =>
+      apiFetch(`/events/${eventId}/reminders/run`, { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("reminderTitle")}</CardTitle>
+        <CardDescription>{t("reminderDescription")}</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="secondary"
+          disabled={reminder.isPending}
+          onClick={() => reminder.mutate()}
+        >
+          {reminder.isPending ? tc("processing") : t("runReminder")}
+        </Button>
+        {reminder.isError && (
+          <span className="text-sm text-destructive">
+            {reminder.error instanceof Error
+              ? reminder.error.message
+              : tc("operationFailed")}
+          </span>
+        )}
+        {reminder.isSuccess && (
+          <span className="text-sm text-muted-foreground">{t("reminderSent")}</span>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MyReportCard({
+  report,
+  role,
+}: {
+  report: ReportRow | null | undefined;
+  role: string | undefined;
+}) {
+  const t = useTranslations("eventDetail");
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("myReport")}</CardTitle>
+        <CardDescription>
+          {role === "EMPLOYEE"
+            ? t("myReportDescriptionEmployee")
+            : t("myReportDescription")}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {report ? (
+          <div className="space-y-1 text-sm">
+            <p className="flex items-center gap-1">
+              {t("statusLabel")}<StatusBadge status={report.status} />
+            </p>
+            {report.message && <p>{t("messageLabel")}{report.message}</p>}
+            <p className="pt-1 text-muted-foreground">{t("reportSubmitted")}</p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("notReported")}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReportsTable({ reports }: { reports: ReportRow[] }) {
+  const tc = useTranslations("common");
+  const ts = useTranslations("stats");
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>{tc("name")}</TableHead>
+          <TableHead>{tc("department")}</TableHead>
+          <TableHead>{tc("status")}</TableHead>
+          <TableHead>{tc("description")}</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {reports.map((r) => (
+          <TableRow key={r.user.id}>
+            <TableCell>{r.user.name}</TableCell>
+            <TableCell>{r.user.department?.name ?? "—"}</TableCell>
+            <TableCell>
+              <StatusBadge
+                status={r.status}
+                label={r.status === "NO_RESPONSE" ? ts("noResponse") : undefined}
+              />
+            </TableCell>
+            <TableCell className="max-w-xs truncate text-muted-foreground">
+              {r.message ?? "—"}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function ReportsSection({
+  role,
+  reports,
+  loading,
+  error,
+  errorObj,
+}: {
+  role: string | undefined;
+  reports: ReportRow[] | undefined;
+  loading: boolean;
+  error: boolean;
+  errorObj: unknown;
+}) {
+  const t = useTranslations("eventDetail");
+  const tc = useTranslations("common");
+
+  function body() {
+    if (loading) {
+      return <p className="text-sm text-muted-foreground">{tc("loading")}</p>;
+    }
+    if (error) {
+      return (
+        <p className="text-sm text-destructive">
+          {errorObj instanceof Error ? errorObj.message : tc("operationFailed")}
+        </p>
+      );
+    }
+    if (!reports?.length) {
+      return <p className="text-sm text-muted-foreground">{t("noTeamReports")}</p>;
+    }
+    return <ReportsTable reports={reports} />;
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {role === "ADMIN" ? t("allReports") : t("teamReports")}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>{body()}</CardContent>
+    </Card>
+  );
+}
+
 export default function EventDetailPage() {
   const params = useParams<{ eventId: string }>();
   const eventId = params.eventId;
   const router = useRouter();
   const t = useTranslations("eventDetail");
-  const ts = useTranslations("stats");
   const tc = useTranslations("common");
   const te = useTranslations("events");
   const ta = useTranslations("adminEvents");
@@ -118,51 +316,15 @@ export default function EventDetailPage() {
   });
 
   const {
-    data: teamReports,
-    isLoading: teamReportsLoading,
-    isError: teamReportsError,
-    error: teamReportsErrorObj,
-  } = useQuery({
-    queryKey: ["event", eventId, "reports", "team"],
-    queryFn: () => apiFetch<ReportRow[]>(`/events/${eventId}/reports/team`),
-    enabled: !!eventId && !!session && me?.role === "MANAGER",
-  });
+    reports,
+    reportsLoading,
+    reportsError,
+    reportsErrorObj,
+    showReportsSection,
+  } = useEventReports(eventId, !!eventId && !!session, me?.role);
 
-  const {
-    data: allReports,
-    isLoading: allReportsLoading,
-    isError: allReportsError,
-    error: allReportsErrorObj,
-  } = useQuery({
-    queryKey: ["event", eventId, "reports", "all"],
-    queryFn: () => apiFetch<ReportRow[]>(`/events/${eventId}/reports`),
-    enabled: !!eventId && !!session && me?.role === "ADMIN",
-  });
-
-  const qc = useQueryClient();
-
-  const reminder = useMutation({
-    mutationFn: () =>
-      apiFetch(`/events/${eventId}/reminders/run`, { method: "POST" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["notifications"] });
-    },
-  });
-
-  const reports =
-    me?.role === "ADMIN" ? allReports : me?.role === "MANAGER" ? teamReports : undefined;
-  const reportsLoading =
-    me?.role === "ADMIN" ? allReportsLoading : me?.role === "MANAGER" ? teamReportsLoading : false;
-  const reportsError =
-    me?.role === "ADMIN" ? allReportsError : me?.role === "MANAGER" ? teamReportsError : false;
-  const reportsErrorMessage =
-    me?.role === "ADMIN"
-      ? allReportsErrorObj
-      : me?.role === "MANAGER"
-        ? teamReportsErrorObj
-        : undefined;
-  const showReportsSection =
-    me?.role === "ADMIN" || me?.role === "MANAGER";
+  const isResponder = me?.role === "EMPLOYEE" || me?.role === "MANAGER";
+  const isStaff = me?.role === "ADMIN" || me?.role === "MANAGER";
 
   return (
     <AppShell>
@@ -188,130 +350,32 @@ export default function EventDetailPage() {
               </div>
             )}
           </div>
-          {(me?.role === "EMPLOYEE" || me?.role === "MANAGER") &&
-            event?.status === "ACTIVE" && (
-              <Link
-                href={`/events/${eventId}/report`}
-                className={cn(buttonVariants())}
-              >
-                {t("reportButton")}
-              </Link>
-            )}
+          {isResponder && event?.status === "ACTIVE" && (
+            <Link
+              href={`/events/${eventId}/report`}
+              className={cn(buttonVariants())}
+            >
+              {t("reportButton")}
+            </Link>
+          )}
         </div>
 
-        {stats && (me?.role === "ADMIN" || me?.role === "MANAGER") && (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <StatCard label={ts("total")} value={stats.total} />
-            <StatCard label={ts("responded")} value={stats.responded} color="var(--info)" />
-            <StatCard label={ts("safe")} value={stats.safe} color="var(--success)" />
-            <StatCard label={ts("needHelp")} value={stats.need_help} color="var(--destructive)" />
-            <StatCard label={ts("noResponse")} value={stats.no_response} color="var(--warning)" />
-          </div>
-        )}
+        {stats && isStaff && <StatsGrid stats={stats} />}
 
         {me?.role === "ADMIN" && event?.status === "ACTIVE" && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("reminderTitle")}</CardTitle>
-              <CardDescription>{t("reminderDescription")}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="secondary"
-                disabled={reminder.isPending}
-                onClick={() => reminder.mutate()}
-              >
-                {reminder.isPending ? tc("processing") : t("runReminder")}
-              </Button>
-              {reminder.isError && (
-                <span className="text-sm text-destructive">
-                  {reminder.error instanceof Error
-                    ? reminder.error.message
-                    : tc("operationFailed")}
-                </span>
-              )}
-              {reminder.isSuccess && (
-                <span className="text-sm text-muted-foreground">{t("reminderSent")}</span>
-              )}
-            </CardContent>
-          </Card>
+          <ReminderCard eventId={eventId} />
         )}
 
-        {(me?.role === "EMPLOYEE" || me?.role === "MANAGER") && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("myReport")}</CardTitle>
-              <CardDescription>
-                {me?.role === "EMPLOYEE"
-                  ? t("myReportDescriptionEmployee")
-                  : t("myReportDescription")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {myReport ? (
-                <div className="space-y-1 text-sm">
-                  <p className="flex items-center gap-1">
-                    {t("statusLabel")}<StatusBadge status={myReport.status} />
-                  </p>
-                  {myReport.message && <p>{t("messageLabel")}{myReport.message}</p>}
-                  <p className="pt-1 text-muted-foreground">{t("reportSubmitted")}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t("notReported")}</p>
-              )}
-            </CardContent>
-          </Card>
-        )}
+        {isResponder && <MyReportCard report={myReport} role={me?.role} />}
 
         {showReportsSection && (
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                {me?.role === "ADMIN" ? t("allReports") : t("teamReports")}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {reportsLoading ? (
-                <p className="text-sm text-muted-foreground">{tc("loading")}</p>
-              ) : reportsError ? (
-                <p className="text-sm text-destructive">
-                  {reportsErrorMessage instanceof Error
-                    ? reportsErrorMessage.message
-                    : tc("operationFailed")}
-                </p>
-              ) : !reports?.length ? (
-                <p className="text-sm text-muted-foreground">{t("noTeamReports")}</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{tc("name")}</TableHead>
-                      <TableHead>{tc("department")}</TableHead>
-                      <TableHead>{tc("status")}</TableHead>
-                      <TableHead>{tc("description")}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {reports.map((r) => (
-                      <TableRow key={r.user.id}>
-                        <TableCell>{r.user.name}</TableCell>
-                        <TableCell>{r.user.department?.name ?? "—"}</TableCell>
-                        <TableCell>
-                          <StatusBadge
-                            status={r.status}
-                            label={r.status === "NO_RESPONSE" ? ts("noResponse") : undefined}
-                          />
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate text-muted-foreground">
-                          {r.message ?? "—"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          <ReportsSection
+            role={me?.role}
+            reports={reports}
+            loading={reportsLoading}
+            error={reportsError}
+            errorObj={reportsErrorObj}
+          />
         )}
       </div>
     </AppShell>
