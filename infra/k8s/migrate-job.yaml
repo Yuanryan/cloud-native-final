@@ -13,6 +13,8 @@ spec:
         app: prisma-migrate
     spec:
       restartPolicy: Never
+      # Migration job runs prisma against Postgres only; no Kubernetes API access.
+      automountServiceAccountToken: false
       containers:
         - name: migrate
           image: local/safety-api:dev
@@ -26,3 +28,10 @@ spec:
           envFrom:
             - secretRef:
                 name: app-env
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

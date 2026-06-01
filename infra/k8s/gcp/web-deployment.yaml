@@ -16,6 +16,8 @@ spec:
       labels:
         app: safety-web
     spec:
+      # Web is a Next.js frontend; it does not call the Kubernetes API.
+      automountServiceAccountToken: false
       containers:
         - name: web
           image: __IMAGE__

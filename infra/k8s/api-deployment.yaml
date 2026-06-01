@@ -20,6 +20,8 @@ spec:
       labels:
         app: safety-api
     spec:
+      # API talks to Postgres/Redis and uses DNS for pod discovery, not the K8s API.
+      automountServiceAccountToken: false
       containers:
         - name: api
           image: local/safety-api:dev

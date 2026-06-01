@@ -8,7 +8,9 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-gke-${{ github.event.workflow_run.head_branch || github.ref }}
+  # Group by github.ref (the deploy's own trusted ref), NOT workflow_run.head_branch —
+  # the privileged workflow must not process input from the untrusted CI workflow (githubactions:S7631).
+  group: deploy-gke-${{ github.ref }}
   cancel-in-progress: false
 
 # Least privilege: deploy only reads source to check out; GCP auth uses GCP_SA_KEY, not GITHUB_TOKEN.
