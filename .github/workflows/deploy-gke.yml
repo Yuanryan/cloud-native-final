@@ -19,7 +19,10 @@ env:
   GCP_REGION: ${{ secrets.GCP_REGION || 'asia-northeast1' }}
   AR_REPO: ${{ secrets.GCP_AR_REPO || 'safety-api' }}
   USE_GKE_GCLOUD_AUTH_PLUGIN: True
-  DEPLOY_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+  # Use github.sha (default-branch tip), NOT github.event.workflow_run.head_sha.
+  # The privileged deploy must not ingest input from the untrusted CI workflow (githubactions:S7631).
+  # For workflow_run this is the default branch HEAD; for workflow_dispatch, the dispatched ref.
+  DEPLOY_SHA: ${{ github.sha }}
 
 jobs:
   deploy:
